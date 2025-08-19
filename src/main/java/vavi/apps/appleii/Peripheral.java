@@ -12,25 +12,44 @@ import java.util.Random;
 
 
 public class Peripheral {
-	protected Random rand = new Random();
+
+    protected final Random rand = new Random();
 
     public Peripheral() {
-	}
-	
-    public int ioRead(int address) {
-		return rand.nextInt(256);
     }
-	
+
+    /**
+     * I/O read
+     *
+     * @param address Address
+     */
+    public int ioRead(int address) {
+        return rand.nextInt(256);
+    }
+
+    /**
+     * I/O write
+     *
+     * @param address Address
+     */
     public void ioWrite(int address, int value) {
     }
-	
+
+    /**
+     * Memory read
+     *
+     * @param address Address
+     */
     public int memoryRead(int address) {
-		return 0;
+        return 0;
     }
-	
+
     public void memoryWrite(int address, int value) {
     }
-	
-	public void reset() {
-	}
+
+    /**
+     * Reset peripheral
+     */
+    public void reset() {
+    }
 }
