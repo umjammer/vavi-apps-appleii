@@ -1,7 +1,7 @@
 /*
  * AppleIIGo
  * Speaker processing
- * (C) 2006 by Marc S. Ressl(ressl@lonetree.com)
+ * Copyright 2006 by Marc S. Ressl(mressl@gmail.com)
  * Released under the GPL
  */
 
@@ -37,7 +37,6 @@ public class AppleSpeaker implements Runnable {
 
     private SourceDataLine line;
 
-    private int bufferSamples;
     private int bufferSize;
     private byte[] buffer;
 
@@ -67,7 +66,7 @@ public class AppleSpeaker implements Runnable {
         if (value <= 0.0f)
             return;
 
-        this.refreshRate = value;
+//		this.refreshRate = value;
         refreshInterval = (int) (1000.0 / value);
 
         speakerClocksPerSample = (int) (apple.getCpuSpeed() * 1000.0f / SPEAKER_SAMPLERATE);
@@ -129,14 +128,12 @@ public class AppleSpeaker implements Runnable {
                     SPEAKER_BIGENDIAN);
 
             DataLine.Info info = new DataLine.Info(
-                    DataLine.class,
+                    SourceDataLine.class,
                     audioFormat);
 
             try {
                 line = (SourceDataLine) AudioSystem.getLine(info);
                 bufferSize = line.getBufferSize();
-                bufferSamples = bufferSize / SPEAKER_SAMPLESIZE;
-
                 buffer = new byte[bufferSize];
 
                 line.open(audioFormat);
@@ -144,13 +141,15 @@ public class AppleSpeaker implements Runnable {
             } catch (LineUnavailableException e) {
             }
 
-            thread = new Thread(this);
-            thread.start();
+            // TODO: this thread is not created any more (nick)
+            //thread = new Thread(this);
+            //thread.start();
         }
     }
 
     /**
      * Speaker refresh thread
+     * TODO: this thread is not created any more (nick)
      */
     @Override
     public void run() {
@@ -173,7 +172,7 @@ public class AppleSpeaker implements Runnable {
     /**
      * Speaker refresh
      */
-    private void refreshSpeaker() {
+    public void refreshSpeaker() {
         clockEnd = apple.clock;
         int bytes;
 

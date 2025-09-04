@@ -1,7 +1,7 @@
 /*
  * AppleIIGo
  * Apple II Emulator for J2ME
- * (C) 2006 by Marc S. Ressl(ressl@lonetree.com)
+ * Copyright 2006 by Marc S. Ressl(mressl@gmail.com)
  * Released under the GPL
  */
 
@@ -11,6 +11,8 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 
 import static java.lang.System.getLogger;
+import java.io.DataInputStream;
+import java.io.IOException;
 
 
 public class EmAppleII extends Em6502 implements Runnable {
@@ -66,8 +68,9 @@ public class EmAppleII extends Em6502 implements Runnable {
     // Peripherals
     public final Paddle paddle;
     public final Peripheral[] slots;
+    public AppleSpeaker speaker;
 
-    // Graphics (dirty buffer every 0x80 bytes)
+    // Graphics	(dirty buffer every 0x80 bytes)
     public int graphicsMode;
     public final boolean[] graphicsDirty = new boolean[0x10000 >> 7];
 
@@ -81,8 +84,9 @@ public class EmAppleII extends Em6502 implements Runnable {
     public static final int GR_DHIRES = (1 << 7);
 
     // Sound
-    public static final int SPEAKER_FLIPS_SIZE = 4096;
-    public static final int SPEAKER_FLIPS_MASK = 4095;
+    public static final int SPEAKER_FLIPS_BITS = 12;
+    public static final int SPEAKER_FLIPS_SIZE = 1 << SPEAKER_FLIPS_BITS;
+    public static final int SPEAKER_FLIPS_MASK = SPEAKER_FLIPS_SIZE - 1;
 
     public final int[] speakerFlips = new int[SPEAKER_FLIPS_SIZE];
     public int speakerFlipsPointer = 0;
@@ -117,7 +121,7 @@ public class EmAppleII extends Em6502 implements Runnable {
 
             0xa0, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x10, 0x10, 0x0c, 0x05, 0x09, 0x09,
             0x07, 0x0f, 0x20, 0x12, 0x05, 0x11, 0x15, 0x09, 0x12, 0x05, 0x13, 0x20, 0x01, 0x0e, 0x20, 0x20,
-            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0xa0, // APPLEIIGO REQUIRES AN
+            0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0xa0,    // APPLEIIGO REQUIRES AN
 
             0xa0, 0x20, 0x20, 0x20, 0x20, 0x20, 0x20, 0x01, 0x10, 0x10, 0x0c, 0x05, 0x20, 0x09, 0x09, 0x20,
             0x12, 0x0f, 0x0d, 0x20, 0x09, 0x0d, 0x01, 0x07, 0x05, 0x20, 0x14, 0x0f, 0x20, 0x12, 0x15, 0x0e,
@@ -182,6 +186,7 @@ public class EmAppleII extends Em6502 implements Runnable {
     // Thread stuff
     private boolean isPaused = true;
     private Thread thread;
+    private String threadError = null;
 
     // Step mode
     private boolean isStepMode = false;
@@ -215,7 +220,7 @@ public class EmAppleII extends Em6502 implements Runnable {
         slots = new Peripheral[8];
         for (int slot = 1; slot < 8; slot++) {
             setPeripheral(new Peripheral(), slot);
-        }
+    }
     }
 
     /**
@@ -231,7 +236,7 @@ public class EmAppleII extends Em6502 implements Runnable {
     public void loadDefaultRom() {
         for (int offset = 0; offset < 0x1d0; offset++) {
             mem[(MEM_ROM_MAIN_LOW + 0x3000 - 0x1d0) + offset] = (byte) defaultRom[offset];
-        }
+    }
     }
 
     /**
@@ -280,6 +285,15 @@ public class EmAppleII extends Em6502 implements Runnable {
         // Copy internal ROM
         System.arraycopy(rom, offset + 0x3000, mem, MEM_ROM_INTERNAL + 0x00000, 0x01000);
         System.arraycopy(rom, offset + 0x3800, mem, MEM_ROM_EXTERNAL + 0x00800, 0x00800);
+
+        for (int slot = 0x100; slot <= 0x700; slot += 0x100) {
+            if (mem[MEM_ROM_EXTERNAL + slot] == 0) {
+                // 0 data is a bad default for empty external slots (e.g. Mabel's Mansion reboots)
+                // so ideally we would emulate the floating bus, but for now we just hardcode 0xA0
+                for (int i = 0; i <= 0xFF; i++)
+                    mem[MEM_ROM_EXTERNAL + slot + i] = (byte) 0xA0;
+            }
+        }
     }
 
     /**
@@ -291,7 +305,7 @@ public class EmAppleII extends Em6502 implements Runnable {
         int offset = MEM_ROM_EXTERNAL + (slot << 8);
         for (int i = 0; i < 0x100; i++) {
             mem[offset + i] = (byte) peripheral.memoryRead(i);
-        }
+    }
     }
 
     /**
@@ -535,7 +549,7 @@ public class EmAppleII extends Em6502 implements Runnable {
 
             if (isHires) {
                 hiresWriteOffset = hiresReadOffset = textReadOffset;
-            }
+        }
         }
 
         memoryReadOffset[0x02] = memoryReadOffset[0x03] = ramReadOffset;
@@ -573,13 +587,13 @@ public class EmAppleII extends Em6502 implements Runnable {
             memoryReadOffset[0xc3] = (MEM_ROM_EXTERNAL - MEM_PHYS_IO);
         } else {
             memoryReadOffset[0xc3] = (MEM_ROM_INTERNAL - MEM_PHYS_IO);
-        }
+    }
     }
 
     private void initIOMemoryMap() {
         for (int offset = 0xc1; offset < 0xd0; offset++) {
             memoryWriteOffset[offset] = (MEM_WASTE - MEM_PHYS_IO);
-        }
+    }
     }
 
     private void updateLCMemoryMap() {
@@ -1242,6 +1256,11 @@ public class EmAppleII extends Em6502 implements Runnable {
 
     /**
      * Emulator thread
+     * <p>
+     * TODO: The speaker has been merged into this thread.
+     * This keeps it in sync but it still needs some work.
+     * Speeding up the CPU (or adding fast disk access as below)
+     * requires proper refactoring of the vavi.apps.appleii.AppleSpeaker class.
      */
     @Override
     public void run() {
@@ -1252,6 +1271,7 @@ public class EmAppleII extends Em6502 implements Runnable {
 
                 checkInterrupts();
 
+//				try {
                 if (isStepMode) {
                     if (isNextStep) {
                         isNextStep = false;
@@ -1261,9 +1281,18 @@ public class EmAppleII extends Em6502 implements Runnable {
                     int clocksNeeded = clocksPerInterval;
                     while (clocksNeeded > 0) {
                         clocksNeeded -= executeInstructions(1 + (clocksNeeded >> 3));
-                    }
                 }
+                }
+//				}
+//				catch (RuntimeException e)
+//				{
+//					setStepMode(true); // TODO: for breakpoint hack - disable
+//				}
 
+                // TODO: need something like the following for fast disk access
+                //if (slots[6] instanceof vavi.apps.appleii.DiskII && !((vavi.apps.appleii.DiskII)slots[6]).isMotorOn())
+
+                speaker.refreshSpeaker(); // NOTE: this blocks, syncing emulation and sound
                 refreshDelay = System.currentTimeMillis() - refreshStart;
 
                 refreshDelayCumulative += refreshDelay;
@@ -1275,8 +1304,8 @@ public class EmAppleII extends Em6502 implements Runnable {
 
                 if (refreshDelay < refreshInterval) {
                     Thread.sleep(refreshInterval - refreshDelay);
-                }
             }
+        }
         } catch (Throwable e) {
             view.debug(e);
             view.repaint();
@@ -1316,6 +1345,6 @@ public class EmAppleII extends Em6502 implements Runnable {
         // Reset devices
         for (int slot = 1; slot < 8; slot++) {
             slots[slot].reset();
-        }
     }
+}
 }

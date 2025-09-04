@@ -1,7 +1,7 @@
 /*
  * AppleIIGo
  * Apple II Emulator for J2ME
- * (C) 2006 by Marc S. Ressl(ressl@lonetree.com)
+ * Copyright 2006 by Marc S. Ressl(mressl@gmail.com)
  * Released under the GPL
  */
 
@@ -69,7 +69,7 @@ public class Paddle {
      * Set paddle position
      *
      * @param paddle Address
-     * @param value  Value
+     * @param value   Value
      */
     public void setPaddlePos(int paddle, int value) {
         /*

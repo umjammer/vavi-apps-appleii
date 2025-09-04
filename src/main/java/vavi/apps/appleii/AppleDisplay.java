@@ -1,11 +1,14 @@
 /*
  * AppleIIGo
  * Display processing
- * (C) 2006 by Marc S. Ressl (ressl@lonetree.com)
+ * Copyright 2006 by Marc S. Ressl (mressl@gmail.com)
  * Released under the GPL
  */
 
 package vavi.apps.appleii;
+
+import java.awt.Color;
+import java.awt.Graphics;
 
 
 /**
@@ -22,6 +25,8 @@ public class AppleDisplay implements Runnable {
     public static final int COLORMODE_COLOR = 1;
 
     private int colorMode;
+    private boolean isGlare;
+    private boolean isStatMode;
 
     // Refresh
     private int refreshRate;
@@ -54,20 +59,22 @@ public class AppleDisplay implements Runnable {
 
     // Display scale
     private float displayScale;
+    private int displayScaledSizeX;
+    private int displayScaledSizeY;
 
     // Display palette
     private int[] displayPalette;
     private static final int[] displayPaletteGreen = {
-            0xff000000, 0xff0e470e, 0xff041204, 0xff166e16,
-            0xff0f4a0f, 0xff115411, 0xff0c3b0c, 0xff1f9e1f,
-            0xff125c12, 0xff1b8a1b, 0xff22ab22, 0xff24b524,
-            0xff1A871a, 0xff2de32d, 0xff25bd25, 0xff32ff32
+            0x000000, 0x0e470e, 0x041204, 0x166e16,
+            0x0f4a0f, 0x115411, 0x0c3b0c, 0x1f9e1f,
+            0x125c12, 0x1b8a1b, 0x22ab22, 0x24b524,
+            0x1A871a, 0x2de32d, 0x25bd25, 0x32ff32
     };
     private static final int[] displayPaletteColor = {
-            0xff000000, 0xffdd0033, 0xff000099, 0xffdd22dd,
-            0xff007722, 0xff555555, 0xff2222ff, 0xff66aaff,
-            0xff885500, 0xffff6600, 0xffaaaaaa, 0xffff9988,
-            0xff11dd00, 0xffffff00, 0xff44ff99, 0xffffffff
+            0x000000, 0xdd0033, 0x000099, 0xdd22dd,
+            0x007722, 0x555555, 0x2222ff, 0x66aaff,
+            0x885500, 0xff6600, 0xaaaaaa, 0xff9988,
+            0x11dd00, 0xffff00, 0x44ff99, 0xffffff
     };
 
     // Character stuff
@@ -174,7 +181,8 @@ public class AppleDisplay implements Runnable {
         setScale(1.0f);
         setRefreshRate(10);
         setColorMode(COLORMODE_GREEN);
-        requestRefresh();
+        setGlare(false);
+        setStatMode(false);
     }
 
     /**
@@ -194,6 +202,16 @@ public class AppleDisplay implements Runnable {
      */
     public float getScale() {
         return displayScale;
+    }
+
+    public int getSizeX() {
+        precalcDisplay();
+        return displayScaledSizeX;
+    }
+
+    public int getSizeY() {
+        precalcDisplay();
+        return displayScaledSizeY;
     }
 
     /**
@@ -261,8 +279,34 @@ public class AppleDisplay implements Runnable {
         return isPaused;
     }
 
-    public void requestRefresh() {
+    /**
+     * Set glare
+     */
+    public void setGlare(boolean value) {
+        isGlare = value;
         isRefreshRequested = true;
+    }
+
+    /**
+     * Get glare
+     */
+    public boolean getGlare() {
+        return isGlare;
+    }
+
+    /**
+     * Set stat mode
+     */
+    public void setStatMode(boolean value) {
+        isStatMode = value;
+        isRefreshRequested = true;
+    }
+
+    /**
+     * Get stat mode
+     */
+    public boolean getStatMode() {
+        return isStatMode;
     }
 
     /**
@@ -316,6 +360,25 @@ public class AppleDisplay implements Runnable {
         } catch (Throwable e) {
             apple.view.debug(e);
             apple.view.repaint();
+        }
+    }
+
+    /**
+     * Paint stat info
+     */
+    private void drawStatInfo(Graphics g) {
+        final int fontSize = 16;
+
+        g.setColor(Color.WHITE);
+
+        String statInfo = apple.getStatInfo() + "\n" + getStatInfo();
+        String[] lines = statInfo.split("\n");
+
+        int drawPosY = fontSize;
+        for (int lineNo = 0; lineNo < lines.length; lineNo++) {
+            String line = lines[lineNo];
+            g.drawString(line, 0, drawPosY);
+            drawPosY += fontSize;
         }
     }
 
@@ -397,7 +460,7 @@ public class AppleDisplay implements Runnable {
 
             if (isSomeHires && isHiresBufferDirty(baseAddressHires)) {
                 isRenderRequested = true;
-            }
+        }
         }
 
         // Draw
@@ -407,7 +470,7 @@ public class AppleDisplay implements Runnable {
                     renderDoubleText(baseAddressText, isMixedMode);
                 } else {
                     renderText(baseAddressText, isMixedMode);
-                }
+            }
             }
 
             if (isSomeHires) {
@@ -421,7 +484,7 @@ public class AppleDisplay implements Runnable {
                     renderDoubleLores(baseAddressText, isMixedMode);
                 } else {
                     renderLores(baseAddressText, isMixedMode);
-                }
+            }
             }
 
             isRefreshRequested = true;
@@ -480,7 +543,7 @@ public class AppleDisplay implements Runnable {
             apple.graphicsDirty[address] = false;
             if (graphicsDirty[address]) {
                 isDirty = true;
-            }
+        }
         }
 
         return isDirty;
@@ -498,13 +561,13 @@ public class AppleDisplay implements Runnable {
         for (int address = addressStart; address < addressEnd; address++) {
             graphicsDirty[address] =
                     apple.graphicsDirty[address + (0x0000 >> 7)] ||
-                    apple.graphicsDirty[address + (0x0400 >> 7)] ||
-                    apple.graphicsDirty[address + (0x0800 >> 7)] ||
-                    apple.graphicsDirty[address + (0x0c00 >> 7)] ||
-                    apple.graphicsDirty[address + (0x1000 >> 7)] ||
-                    apple.graphicsDirty[address + (0x1400 >> 7)] ||
-                    apple.graphicsDirty[address + (0x1800 >> 7)] ||
-                    apple.graphicsDirty[address + (0x1c00 >> 7)];
+                            apple.graphicsDirty[address + (0x0400 >> 7)] ||
+                            apple.graphicsDirty[address + (0x0800 >> 7)] ||
+                            apple.graphicsDirty[address + (0x0c00 >> 7)] ||
+                            apple.graphicsDirty[address + (0x1000 >> 7)] ||
+                            apple.graphicsDirty[address + (0x1400 >> 7)] ||
+                            apple.graphicsDirty[address + (0x1800 >> 7)] ||
+                            apple.graphicsDirty[address + (0x1c00 >> 7)];
             apple.graphicsDirty[address + (0x0000 >> 7)] = false;
             apple.graphicsDirty[address + (0x0400 >> 7)] = false;
             apple.graphicsDirty[address + (0x0800 >> 7)] = false;
@@ -515,7 +578,7 @@ public class AppleDisplay implements Runnable {
             apple.graphicsDirty[address + (0x1c00 >> 7)] = false;
             if (graphicsDirty[address]) {
                 isDirty = true;
-            }
+        }
         }
 
         return isDirty;
@@ -564,7 +627,7 @@ public class AppleDisplay implements Runnable {
         // Colorize
         for (charSetOffset = 0; charSetOffset < (CHARSET_SIZE_X * CHARSET_SIZE_Y); charSetOffset++) {
             charSet[charSetOffset] &= (displayPalette[0xf] | 0xff000000);
-        }
+    }
     }
 
     /**
@@ -574,8 +637,8 @@ public class AppleDisplay implements Runnable {
         for (int index = 0; index < 3; index++) {
             for (int character = 0; character < 0x100; character++) {
                 charMaps[index][character] = charMapLookup[index][character >> 5] + (character & 0x1f);
-            }
         }
+    }
     }
 
     /**
@@ -600,19 +663,19 @@ public class AppleDisplay implements Runnable {
         for (int value = 0; value < 0x200; value++) {
             hiresEvenOddToWord[value] =
                     ((value & 0x01) << 0) |
-                    ((value & 0x01) << 1) |
-                    ((value & 0x02) << 1) |
-                    ((value & 0x02) << 2) |
-                    ((value & 0x04) << 2) |
-                    ((value & 0x04) << 3) |
-                    ((value & 0x08) << 3) |
-                    ((value & 0x08) << 4) |
-                    ((value & 0x10) << 4) |
-                    ((value & 0x10) << 5) |
-                    ((value & 0x20) << 5) |
-                    ((value & 0x20) << 6) |
-                    ((value & 0x40) << 6) |
-                    ((value & 0x40) << 7);
+                            ((value & 0x01) << 1) |
+                            ((value & 0x02) << 1) |
+                            ((value & 0x02) << 2) |
+                            ((value & 0x04) << 2) |
+                            ((value & 0x04) << 3) |
+                            ((value & 0x08) << 3) |
+                            ((value & 0x08) << 4) |
+                            ((value & 0x10) << 4) |
+                            ((value & 0x10) << 5) |
+                            ((value & 0x20) << 5) |
+                            ((value & 0x20) << 6) |
+                            ((value & 0x40) << 6) |
+                            ((value & 0x40) << 7);
 
             if ((value & 0x80) != 0) {
                 hiresEvenOddToWord[value] <<= 1;
@@ -633,11 +696,11 @@ public class AppleDisplay implements Runnable {
             for (int value = 0; value < 0x100; value++) {
                 hiresLookup[value] =
                         (((value & 0x04) != 0) ? 0x000f : 0) |
-                        (((value & 0x08) != 0) ? 0x00f0 : 0) |
-                        (((value & 0x10) != 0) ? 0x0f00 : 0) |
-                        (((value & 0x20) != 0) ? 0xf000 : 0);
-            }
+                                (((value & 0x08) != 0) ? 0x00f0 : 0) |
+                                (((value & 0x10) != 0) ? 0x0f00 : 0) |
+                                (((value & 0x20) != 0) ? 0xf000 : 0);
         }
+    }
     }
 
     /**
@@ -697,8 +760,8 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
+    }
     }
 
     /**
@@ -760,8 +823,8 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
+    }
     }
 
     /**
@@ -820,8 +883,8 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
+    }
     }
 
     /**
@@ -852,8 +915,8 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
+    }
     }
 
     /**
@@ -963,8 +1026,8 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
+    }
     }
 
     /**
@@ -1008,8 +1071,8 @@ public class AppleDisplay implements Runnable {
     private void calcNextDoubleHiresWord(int hiresWordIndex, int byte1, int byte2, int byte3, int byte4) {
         hiresWordNext[hiresWordIndex] = (
                 ((byte1 & 0x7f) << 2) | ((byte2 & 0x7f) << 9) |
-                ((byte3 & 0x7f) << 16) | ((byte4 & 0x7f) << 23) |
-                (hiresWord[hiresWordIndex] >> 28));
+                        ((byte3 & 0x7f) << 16) | ((byte4 & 0x7f) << 23) |
+                        (hiresWord[hiresWordIndex] >> 28));
         hiresWord[hiresWordIndex] |= (hiresWordNext[hiresWordIndex] << 28);
     }
 
@@ -1067,7 +1130,7 @@ public class AppleDisplay implements Runnable {
                 displayOffset += (DISPLAY_CHAR_SIZE_Y - 1) * DISPLAY_SIZE_X;
             } else {
                 displayOffset += DISPLAY_CHAR_SIZE_Y * DISPLAY_SIZE_X;
-            }
         }
     }
+}
 }

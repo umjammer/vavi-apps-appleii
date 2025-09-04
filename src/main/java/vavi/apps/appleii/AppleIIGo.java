@@ -2,7 +2,64 @@
  * AppleIIGo
  * The Java Apple II Emulator
  * (C) 2006 by Marc S. Ressl(ressl@lonetree.com)
- * Released under the GPL
+ * Copyright 2015 by Nick Westgate (Nick.Westgate@gmail.com)
+ * Released under the GNU General Public License version 2
+ * See http://www.gnu.org/licenses/
+ * <p>
+ * Change list:
+ * <p>
+ * Version 1.0.10 - changes by Nick:
+ * - fixed disk stepping bug for Mabel's Mansion using my code from AppleWin
+ * - patch loaded ROM's empty slots with faux-floating bus data so Mabel's Mansion works
+ * - revert CPU status bug introduced in 1.0.9 - V and R used the same bit
+ * - fixed BRK bug by adding extra PC increment
+ * - NOTE: decimal mode arithmetic fails some tests and should be fixed someday
+ * <p>
+ * Version 1.0.9 - changes by Nick:
+ * - fixed disk speed-up bug (Sherwood Forest reads with the drive motor off)
+ * - added check for 2IMG header ID
+ * - fixed processor status bugs in BRK, PLP, RTI, NMI, IRQ
+ * <p>
+ * Version 1.0.8 - changes by Nick:
+ * - implemented disk writing (only in memory, not persisted)
+ * - added support for .2MG (2IMG) disk images, including lock flag and volume number
+ * - support meta tag for write protect in disk filename eg: NotWritable_Meta_DW0.dsk
+ * <p>
+ * Version 1.0.7 - changes by Nick:
+ * - fixed disk emulation bug (sense write protect entered write mode)
+ * - now honour diskWritable parameter (but writing is not implemented)
+ * - support meta tag for volume number in disk filename eg: Vol2_Meta_DV2.dsk
+ * - added isPaddleEnabled parameter
+ * - exposed setPaddleEnabled(boolean value), setPaddleInverted(boolean value)
+ * - paddle values are now 255 at startup (ie. correct if disabled/not present)
+ * - minor vavi.apps.appleii.AppleSpeaker fix (SourceDataLine.class) thanks to William Halliburton
+ * <p>
+ * Version 1.0.6 - changes by Nick:
+ * - exposed F3/F4 disk swapping method: cycleDisk(int driveNumber)
+ * - exposed reset() method
+ * - exposed setSpeed(int value) method
+ * <p>
+ * Version 1.0.5 - changes by Nick:
+ * - added support for .NIB (nibble) disk images  (also inside ZIP archives)
+ * - added disk speedup hacks for DOS (expect ~2x faster reads)
+ * <p>
+ * Version 1.0.4 - changes by Nick:
+ * - added support for .PO (ProDOS order) disk images (also inside ZIP archives)
+ * - added Command key for Closed-Apple on Mac OS X
+ * - added Home and End keys for Open-Apple and Closed-Apple on full keyboards
+ * <p>
+ * Version 1.0.3 - changes by Nick:
+ * - fixed paddle values for scaled display window
+ * - added "digital" joystick support via numeric keypad arrows
+ * - added Left-Alt and Right-Alt keys for Open-Apple and Closed-Apple
+ * - changed reset key from Home to Ctrl-F12 and Ctrl-Pause/Break
+ * <p>
+ * Version 1.0.2 - changes by Nick:
+ * - improved sound sync by moving vavi.apps.appleii.AppleSpeaker into the main thread
+ * - added version (F1)
+ * - added multiple disks & swapping (F3, F4)
+ * - added ZIP archive support
+ * - fixed HTTP disk image access bug
  */
 
 package vavi.apps.appleii;
@@ -24,7 +81,6 @@ public class AppleIIGo {
     // Class instances
     private EmAppleII apple;
     private AppleDisplay display;
-    private AppleSpeaker speaker;
     private DiskII disk;
 
     // Machine variables
@@ -142,7 +198,7 @@ public class AppleIIGo {
     }
 
     public void setVolume(boolean up) {
-        speaker.setVolume(speaker.getVolume() + (up ? 1 : -1));
+        apple.speaker.setVolume(apple.speaker.getVolume() + (up ? 1 : -1));
     }
 
     public void toggleStatMode() {
@@ -174,7 +230,8 @@ public class AppleIIGo {
      */
     public void setGlare(boolean value) {
         isGlare = value;
-        display.requestRefresh();
+        display.setGlare(false);
+        display.setStatMode(false);
     }
 
     /**
@@ -189,7 +246,8 @@ public class AppleIIGo {
      */
     public void setStatMode(boolean value) {
         isStatMode = value;
-        display.requestRefresh();
+        display.setGlare(false);
+        display.setStatMode(false);
     }
 
     /**
@@ -238,15 +296,15 @@ public class AppleIIGo {
         display.setScale(Float.parseFloat(getParameter("displayScale", "1")));
         display.setRefreshRate(Integer.parseInt(getParameter("displayRefreshRate", "10")));
         display.setColorMode(Integer.parseInt(getParameter("displayColorMode", "1")));
-        setStatMode(getParameter("displayStatMode", "false").equals("true"));
-        setGlare(getParameter("displayGlare", "false").equals("true"));
+        display.setStatMode(getParameter("displayStatMode", "false").equals("true"));
+        display.setGlare(getParameter("displayGlare", "false").equals("true"));
 
         // Speaker
-        speaker = new AppleSpeaker(apple);
-        speaker.setVolume(Integer.parseInt(getParameter("speakerVolume", "3")));
+        apple.speaker = new AppleSpeaker(apple);
+        apple.speaker.setVolume(Integer.parseInt(getParameter("speakerVolume", "3")));
 
         // Peripherals
-        disk = new DiskII();
+        disk = new DiskII(apple);
         apple.setPeripheral(disk, 6);
 
         // Initialize disk drives
@@ -333,7 +391,7 @@ public class AppleIIGo {
             diskDriveResource[drive] = resource;
 
             logger.log(Level.TRACE, "mount: dirve: " + drive + ", " + resource);
-            disk.readDisk(dao, drive, resource, 254, false);
+            disk.readDisk(dao, drive, resource, false, 254);
 
             return true;
         } catch (Throwable e) {
@@ -361,7 +419,7 @@ public class AppleIIGo {
         }
 
         try {
-            disk.writeDisk(drive, diskDriveResource[drive]);
+            disk.writeDisk(drive, dao);
         } catch (Throwable e) {
             if (e instanceof NullPointerException) {
                 logger.log(Level.WARNING, "unmount: drive: " + drive + ": no disk, " + e.getMessage());

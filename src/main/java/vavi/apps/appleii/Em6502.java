@@ -1,11 +1,11 @@
 /*
  * AppleIIGo
  * Apple II Emulator for J2SE
- * (C) 2006 by Marc S. Ressl(ressl@lonetree.com)
+ * Copyright 2006 by Marc S. Ressl(mressl@gmail.com)
  * Released under the GPL
  * Adapted from code by Doug Kwan
  * Adapted from code by Randy Frank randy@tessa.iaf.uiowa.edu
- * Adapted from code (C) 1989 Ben Koning [556498717 408/738-1763 ben@apple.com]
+ * Adapted from code Copyright 1989 Ben Koning [556498717 408/738-1763 ben@apple.com]
  */
 
 package vavi.apps.appleii;
@@ -85,6 +85,7 @@ public class Em6502 {
     public static final int FLAG_I = (1 << 2);
     public static final int FLAG_D = (1 << 3);
     public static final int FLAG_B = (1 << 4);
+    public static final int FLAG_R = (1 << 5);
     public static final int FLAG_V = (1 << 6);
     public static final int FLAG_N = (1 << 7);
     /*
@@ -107,7 +108,7 @@ public class Em6502 {
      */
     private int pendingIRQ;
 
-    /*
+    /**
      * Emulator registers
      */
     private int easp1, easp2;
@@ -117,7 +118,7 @@ public class Em6502 {
     private int result;
     private int NZFlags;
 
-    /*
+    /**
      * ALU look up tables
      */
     private final int[] BCDTableAdd;    // addition correction
@@ -127,6 +128,8 @@ public class Em6502 {
      * Constructor
      */
     public Em6502() {
+//		createRunFile(); // TODO: for debugging - disable
+
         // Init BCD tables
         BCDTableAdd = new int[512];
         BCDTableSub = new int[512];
@@ -141,6 +144,10 @@ public class Em6502 {
             BCDTableSub[i] = ((i & 0x0f) <= 0x09) ? i : (i - 0x06);
             BCDTableSub[i] -= ((BCDTableSub[i] & 0xf0) <= 0x90) ? 0 : 0x60;
         }
+
+        // Init CPU
+        S = 0xFF;
+        P = FLAG_B | FLAG_R;
     }
 
     /*
@@ -225,7 +232,7 @@ public class Em6502 {
         return ((P & FLAG_C) != 0);
     }
 
-    /*
+    /**
      * Fast condition codes. Instead of using bits to encode condition codes,
      * recent ALU results are cached to that the condition codes can be
      * handled more easily by the emulator's native hardware.
@@ -410,9 +417,36 @@ public class Em6502 {
         clock++;
     }
 
+//	private PrintWriter runFile;
+//	private boolean runFlag = false;
+//
+//	private void createRunFile() {
+//		try {
+//			//runFile = new PrintWriter("C:\\Dev\\Emulators\\vavi.apps.appleii.AppleIIGo\\AppleIIGoRun.txt");
+//		} catch (Exception ex) {
+//			// swallow
+//		}
+//	}
+//
+//	private final void writeRunFile(int opcode) {
+//		if (PC == 0x2000)
+//			runFlag = true;
+//		if (runFlag && (PC > 0x1000) && (PC < 0xC000)) {
+//			if (runFile != null) {
+//				setN(getFN());
+//				setZ(getFZ());
+//				setC(getFC());
+//
+//				runFile.printf("%04X-%02X P=%02X A=%02X\r\n", PC, opcode, P, A);
+//				runFile.flush();
+//			}
+//		}
+//	}
+
     /** This executes a single instruction. */
     private void executeInstruction() {
         opcode = memoryRead(PC);
+//		writeRunFile(opcode); // TODO: for debugging = disable
         PC++;
 
         switch (opcode) {
@@ -649,13 +683,13 @@ public class Em6502 {
                 break;
 
             case 0x00:    // BRK
+                PC++;
                 push(PC >> 8);    // save PCH, PCL & P
                 push(PC);
                 setN(getFN());
                 setZ(getFZ());
                 setC(getFC());
-                setB(true);
-                push(P);
+                push(P); // B and R always set
                 setI(true);
                 PC = memoryRead(0xfffe);
                 PC |= memoryRead(0xffff) << 8;
@@ -1164,7 +1198,7 @@ public class Em6502 {
                 break;
 
             case 0x28:    // PLP
-                P = pop() | 0x20; // fix bug in bit5 of P
+                P = pop() | FLAG_B | FLAG_R; // B and R always set
                 setFC(getC());
                 setFNZ(getN(), getZ());
                 clock += 4;
@@ -1265,7 +1299,7 @@ public class Em6502 {
                 break;
 
             case 0x40:    // RTI
-                P = pop() | 0x20; // bit 5 bug of 6502
+                P = pop() | FLAG_B | FLAG_R; // B and R always set
                 setFC(getC());
                 setFNZ(getN(), getZ());
                 PC = pop();    // splitting is necessary
@@ -1660,6 +1694,9 @@ public class Em6502 {
             default:    // unknown instructions
                 clock += 2;
         }
+
+//		if (PC == 0xB30)
+//			throw (new RuntimeException()); // TODO: for breakpoint hack - disable
     }
 
     public final int executeInstructions(int num) {
@@ -1696,13 +1733,14 @@ public class Em6502 {
         if ((exceptionRegister & SIG_6502_RESET) != 0) {
             onReset();
 
-            A = X = Y = 0;
-            P = 0x20;
+            setD(false); // not on NMOS 6502
             setFC(getC());
             setFNZ(getN(), getZ());
-            S = 0xff;
+            S = (S - 3) & 0xff;
+            setI(true);
             PC = memoryRead(0xfffc);
             PC |= (memoryRead(0xfffd) << 8);
+            clock += 7;
             exceptionRegister &= ~SIG_6502_RESET;
         }
 
@@ -1715,7 +1753,8 @@ public class Em6502 {
             setN(getFN());
             setZ(getFZ());
             setC(getFC());
-            push(P);
+            push(P & ~FLAG_B);
+            setI(true);
             PC = memoryRead(0xfffa);
             PC |= memoryRead(0xfffb) << 8;
             clock += 7;
@@ -1733,8 +1772,7 @@ public class Em6502 {
                 setN(getFN());
                 setZ(getFZ());
                 setC(getFC());
-                setB(false);
-                push(P);
+                push(P & ~FLAG_B);
                 setI(true);
                 PC = memoryRead(0xfffe);
                 PC |= memoryRead(0xffff) << 8;
