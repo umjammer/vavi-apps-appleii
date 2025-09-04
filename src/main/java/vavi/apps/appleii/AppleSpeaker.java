@@ -14,6 +14,7 @@ import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
 
 
+// TODO extract machine depend functions
 public class AppleSpeaker implements Runnable {
 
     // Instances of other classes
@@ -151,6 +152,7 @@ public class AppleSpeaker implements Runnable {
     /**
      * Speaker refresh thread
      */
+    @Override
     public void run() {
         try {
             while (!isPaused) {
@@ -232,7 +234,7 @@ public class AppleSpeaker implements Runnable {
      */
     private void getNextFlip() {
         if (speakerFlipsPointer == apple.speakerFlipsPointer) {
-            clockNextFlip = clock + 0x3fffffff;
+            clockNextFlip = clock + 0x3fff_ffff;
             isFlipsBufferEmpty = true;
         } else {
             clockNextFlip = apple.speakerFlips[speakerFlipsPointer];

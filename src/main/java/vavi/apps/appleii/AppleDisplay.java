@@ -162,7 +162,7 @@ public class AppleDisplay implements Runnable {
         this.apple = apple;
 
         // Create display image
-        displayImageBuffer = new int[DISPLAY_SIZE_X * DISPLAY_SIZE_Y];
+        displayImageBuffer = apple.view.createImageBuffer();
 
         // Character maps
         precalcCharMaps();
@@ -600,19 +600,19 @@ public class AppleDisplay implements Runnable {
         for (int value = 0; value < 0x200; value++) {
             hiresEvenOddToWord[value] =
                     ((value & 0x01) << 0) |
-                            ((value & 0x01) << 1) |
-                            ((value & 0x02) << 1) |
-                            ((value & 0x02) << 2) |
-                            ((value & 0x04) << 2) |
-                            ((value & 0x04) << 3) |
-                            ((value & 0x08) << 3) |
-                            ((value & 0x08) << 4) |
-                            ((value & 0x10) << 4) |
-                            ((value & 0x10) << 5) |
-                            ((value & 0x20) << 5) |
-                            ((value & 0x20) << 6) |
-                            ((value & 0x40) << 6) |
-                            ((value & 0x40) << 7);
+                    ((value & 0x01) << 1) |
+                    ((value & 0x02) << 1) |
+                    ((value & 0x02) << 2) |
+                    ((value & 0x04) << 2) |
+                    ((value & 0x04) << 3) |
+                    ((value & 0x08) << 3) |
+                    ((value & 0x08) << 4) |
+                    ((value & 0x10) << 4) |
+                    ((value & 0x10) << 5) |
+                    ((value & 0x20) << 5) |
+                    ((value & 0x20) << 6) |
+                    ((value & 0x40) << 6) |
+                    ((value & 0x40) << 7);
 
             if ((value & 0x80) != 0) {
                 hiresEvenOddToWord[value] <<= 1;
@@ -633,9 +633,9 @@ public class AppleDisplay implements Runnable {
             for (int value = 0; value < 0x100; value++) {
                 hiresLookup[value] =
                         (((value & 0x04) != 0) ? 0x000f : 0) |
-                                (((value & 0x08) != 0) ? 0x00f0 : 0) |
-                                (((value & 0x10) != 0) ? 0x0f00 : 0) |
-                                (((value & 0x20) != 0) ? 0xf000 : 0);
+                        (((value & 0x08) != 0) ? 0x00f0 : 0) |
+                        (((value & 0x10) != 0) ? 0x0f00 : 0) |
+                        (((value & 0x20) != 0) ? 0xf000 : 0);
             }
         }
     }
@@ -1008,8 +1008,8 @@ public class AppleDisplay implements Runnable {
     private void calcNextDoubleHiresWord(int hiresWordIndex, int byte1, int byte2, int byte3, int byte4) {
         hiresWordNext[hiresWordIndex] = (
                 ((byte1 & 0x7f) << 2) | ((byte2 & 0x7f) << 9) |
-                        ((byte3 & 0x7f) << 16) | ((byte4 & 0x7f) << 23) |
-                        (hiresWord[hiresWordIndex] >> 28));
+                ((byte3 & 0x7f) << 16) | ((byte4 & 0x7f) << 23) |
+                (hiresWord[hiresWordIndex] >> 28));
         hiresWord[hiresWordIndex] |= (hiresWordNext[hiresWordIndex] << 28);
     }
 

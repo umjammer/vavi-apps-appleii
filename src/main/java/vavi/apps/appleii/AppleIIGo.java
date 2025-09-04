@@ -7,7 +7,6 @@
 
 package vavi.apps.appleii;
 
-
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 
@@ -52,8 +51,11 @@ public class AppleIIGo {
 
     private boolean diskWritable;
 
-    /** */
+    /** abstraction for view functionality */
     public interface View {
+
+        /** */
+        int[] createImageBuffer();
 
         /** */
         void repaint();
@@ -82,7 +84,7 @@ public class AppleIIGo {
     /** */
     private View view;
 
-    /** */
+    /** abstraction for dao functionality */
     public interface Dao {
 
         /** */
@@ -204,7 +206,7 @@ public class AppleIIGo {
     /**
      * Parameters
      */
-    private String getParameter(String parameter, String defaultValue) {
+    public String getParameter(String parameter, String defaultValue) {
         String value = dao.getParameter(parameter);
         if ((value == null) || (value.isEmpty())) {
             return defaultValue;
@@ -286,9 +288,9 @@ public class AppleIIGo {
     public void resume() {
         logger.log(Level.TRACE, "resume()");
         isCpuPaused = false;
-        speaker.setPaused(isCpuPaused);
+//        speaker.setPaused(isCpuPaused);
         display.setPaused(isCpuPaused);
-//        apple.setPaused(isCpuPaused);
+        apple.setPaused(isCpuPaused);
     }
 
     /**
@@ -336,9 +338,9 @@ public class AppleIIGo {
             return true;
         } catch (Throwable e) {
             if (e instanceof IllegalStateException) {
-                logger.log(Level.TRACE, "mount: drive: " + drive + ": no disk");
+                logger.log(Level.WARNING, "mount: drive: " + drive + ": no disk, " + e.getMessage());
             } else {
-                e.printStackTrace(System.err);
+                logger.log(Level.ERROR, e.getMessage(), e);
             }
             return false;
         }
@@ -362,9 +364,9 @@ public class AppleIIGo {
             disk.writeDisk(drive, diskDriveResource[drive]);
         } catch (Throwable e) {
             if (e instanceof NullPointerException) {
-                logger.log(Level.TRACE, "unmount: drive: " + drive + ": no disk");
+                logger.log(Level.WARNING, "unmount: drive: " + drive + ": no disk, " + e.getMessage());
             } else {
-                e.printStackTrace(System.err);
+                logger.log(Level.ERROR, e.getMessage(), e);
             }
         }
     }

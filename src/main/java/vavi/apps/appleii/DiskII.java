@@ -8,7 +8,6 @@
 
 package vavi.apps.appleii;
 
-
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 
@@ -88,7 +87,7 @@ public class DiskII extends Peripheral {
             0xed, 0xee, 0xef, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6,
             0xf7, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
     };
-    //	  private int[] gcrDecodingTable = new int[256];
+//	  private int[] gcrDecodingTable = new int[256];
     private final int[] gcrSwapBit = {0, 2, 1, 3};
     private final int[] gcrBuffer = new int[256];
     private final int[] gcrBuffer2 = new int[86];

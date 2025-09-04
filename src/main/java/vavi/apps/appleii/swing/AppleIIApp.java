@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.nio.file.FileVisitOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -57,6 +58,7 @@ public class AppleIIApp {
         MyView view = new MyView();
         frame.getContentPane().add(view);
         frame.pack();
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.setVisible(true);
         Thread thread = new Thread(view);
         thread.start();
@@ -110,75 +112,72 @@ public class AppleIIApp {
             void keyPressed(int keyCode) {
                 logger.log(Level.TRACE, "NORMAL: " + keyCode);
                 switch (keyCode) {
-                    case KeyEvent.VK_1:     // 1
+                    case KeyEvent.VK_NUMPAD1:     // 1
                         // user mapped ?
                         break;
-                    case KeyEvent.VK_2:     // 2
+                    case KeyEvent.VK_NUMPAD2:     // 2
                         // user mapped ?
                         break;
-                    case KeyEvent.VK_3:     // 3
+                    case KeyEvent.VK_NUMPAD3:     // 3
                         // user mapped ?
                         break;
-                    case KeyEvent.VK_4:     // 4
+                    case KeyEvent.VK_NUMPAD4:     // 4
                         // user mapped ?
                         break;
-                    case KeyEvent.VK_5:     // 5
+                    case KeyEvent.VK_NUMPAD5:     // 5
                         if (game.isCpuDebugEnabled()) {
                             game.toggleStatMode();
                         }
                         break;
-                    case KeyEvent.VK_6:     // 6
+                    case KeyEvent.VK_NUMPAD6:     // 6
                         if (game.isCpuDebugEnabled()) {
                             game.toggleStepMode();
                         }
                         break;
-                    case KeyEvent.VK_7:     // 7
+                    case KeyEvent.VK_NUMPAD7:     // 7
                         if (game.isCpuDebugEnabled()) {
                             game.stepInstructions(1);
                         }
                         break;
-                    case KeyEvent.VK_8:     // 8
+                    case KeyEvent.VK_NUMPAD8:     // 8
                         if (game.isCpuDebugEnabled()) {
                             game.stepInstructions(128);
                         }
                         break;
-                    case KeyEvent.VK_9:     // 9
+                    case KeyEvent.VK_NUMPAD9:     // 9
                         game.setVolume(true);
                         break;
-                    case KeyEvent.VK_0:     // 0
+                    case KeyEvent.VK_NUMPAD0:     // 0
                         game.setVolume(false);
                         break;
-                    case 403:               // B
-                        mode = MODE_DISK1;
-                        logger.log(Level.TRACE, "mode: -> MODE_VIRTUAL_KEYBOARD");
+                    case KeyEvent.VK_F13:   // F13
+                        mode = MODE_DIRECT;
+                        logger.log(Level.TRACE, "mode: -> DIRECT");
                         break;
-                    case 404:               // R
-                        // user mapped ?
-                        break;
-                    case 405:               // G
+                    case KeyEvent.VK_F14:
                         game.restart();
                         break;
-                    case 406:               // Y
+                    case KeyEvent.VK_F15:
                         game.reset();
                         break;
-                    case KeyEvent.VK_ENTER: // O
+                    case KeyEvent.VK_ENTER:
                     case KeyEvent.VK_X: // for emulator
                         game.setButton(0, true);
                         break;
-                    case 461:               // #
+                    case KeyEvent.VK_SPACE:
                     case KeyEvent.VK_Z: // for emulator
                         game.setButton(1, true);
                         break;
-                    case KeyEvent.VK_LEFT:  // L
+                    case KeyEvent.VK_LEFT:
                         game.setPaddle(0, Paddle.PADDLE_LOW);
                         break;
-                    case KeyEvent.VK_UP:    // U
+                    case KeyEvent.VK_UP:
                         game.setPaddle(1, Paddle.PADDLE_LOW);
                         break;
-                    case KeyEvent.VK_DOWN:  // D
+                    case KeyEvent.VK_DOWN:
                         game.setPaddle(1, Paddle.PADDLE_HIGH);
                         break;
-                    case KeyEvent.VK_RIGHT: // R
+                    case KeyEvent.VK_RIGHT:
                         game.setPaddle(0, Paddle.PADDLE_HIGH);
                         break;
                 }
@@ -189,32 +188,31 @@ public class AppleIIApp {
                 debug("KEY RELEASED: " + keyCode);
                 switch (keyCode) {
                     case KeyEvent.VK_ENTER: // O
-                    case KeyEvent.VK_X: // for emulator
+                    case KeyEvent.VK_X:     // for emulator
                         game.setButton(0, false);
                         break;
-                    case 461:               // #
-                    case KeyEvent.VK_Z: // for emulator
+                    case KeyEvent.VK_SPACE: //
+                    case KeyEvent.VK_Z:     // for emulator
                         game.setButton(1, false);
                         break;
-                    case KeyEvent.VK_LEFT:  // L
+                    case KeyEvent.VK_LEFT:
                         game.setPaddle(0, Paddle.PADDLE_CENTER);
                         break;
-                    case KeyEvent.VK_UP:    // U
+                    case KeyEvent.VK_UP:
                         game.setPaddle(1, Paddle.PADDLE_CENTER);
                         break;
-                    case KeyEvent.VK_DOWN:  // D
+                    case KeyEvent.VK_DOWN:
                         game.setPaddle(1, Paddle.PADDLE_CENTER);
                         break;
-                    case KeyEvent.VK_RIGHT: // R
+                    case KeyEvent.VK_RIGHT:
                         game.setPaddle(0, Paddle.PADDLE_CENTER);
                         break;
                 }
             }
 
-            static final int Y = 384;
-
             /** */
             public void paint(Graphics2D g) {
+                int Y = AppleDisplay.DISPLAY_SIZE_Y * scale;
                 g.setColor(Color.black);
                 g.drawRect(0, Y, 560, 540);
                 if (debug) {
@@ -245,8 +243,13 @@ public class AppleIIApp {
             DiskVC(int drive) throws IOException {
                 this.drive = drive;
                 this.image = ImageIO.read(AppleIIApp.class.getResource("/disk.png"));
-                files = Files.list(root).filter(p -> p.getFileName().toString().toLowerCase().endsWith(".dsk") ||
-                        p.getFileName().toString().toLowerCase().endsWith(".nib")).toList();
+                files = Files.walk(root, FileVisitOption.FOLLOW_LINKS).filter(p ->
+                    !Files.isDirectory(p) && (
+                            p.getFileName().toString().toLowerCase().endsWith(".dsk") ||
+                            p.getFileName().toString().toLowerCase().endsWith(".nib")
+                    )
+                ).toList();
+logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
             }
 
             int fileIndex;
@@ -255,6 +258,7 @@ public class AppleIIApp {
                 logger.log(Level.TRACE, "DISK[" + drive + "]: " + keyCode);
                 switch (keyCode) {
                     case KeyEvent.VK_UP:
+                        if (files.isEmpty()) break;
                         if (fileIndex > 0) {
                             fileIndex--;
                         } else {
@@ -264,6 +268,7 @@ public class AppleIIApp {
                         selectionMode = MODE_SELECTING;
                         break;
                     case KeyEvent.VK_DOWN:
+                        if (files.isEmpty()) break;
                         if (fileIndex < files.size() - 1) {
                             fileIndex++;
                         } else {
@@ -277,31 +282,31 @@ public class AppleIIApp {
 //                    game.mountDisk(drive, name);
                         selectionMode = MODE_SELECTED;
                         break;
-                    case 461:               // #
+                    case KeyEvent.VK_SPACE:
                     case KeyEvent.VK_Z: // for emulator
                         name = null;
                         game.mountDisk(drive, null);
                         selectionMode = MODE_SELECTED;
                         break;
-                    case 403:               // B
+                    case KeyEvent.VK_F13:   // F13
                         if (drive == 0) {
                             mode = MODE_DISK2;
                             diskVCs[1].init();
                             logger.log(Level.TRACE, "mode: -> DISK2");
                         } else {
-                            if (debug) {
-                                mode = MODE_DIRECT;
-                                logger.log(Level.TRACE, "mode: -> DIRECT");
-                            } else {
+//                            if (debug) {
                                 mode = MODE_NORMAL;
                                 logger.log(Level.TRACE, "mode: -> NORMAL");
-                            }
+//                            } else {
+//                                mode = MODE_NORMAL;
+//                                logger.log(Level.TRACE, "mode: -> NORMAL");
+//                            }
                         }
                         break;
-                    case 405:               // G
+                    case KeyEvent.VK_F14:   // F14
                         game.restart();
                         break;
-                    case 406:               // Y
+                    case KeyEvent.VK_F15:   // F15
                         game.reset();
                 }
             }
@@ -317,10 +322,9 @@ public class AppleIIApp {
                 selectionMode = MODE_SELECTED;
             }
 
-            static final int Y = 384;
-
             /** */
             public void paint(Graphics2D g) {
+                int Y = AppleDisplay.DISPLAY_SIZE_Y * scale;
                 g.setColor(Color.black);
                 g.drawRect(0, Y, 560, 540);
                 g.drawImage(image, 0, Y, null);
@@ -365,14 +369,14 @@ public class AppleIIApp {
                     case KeyEvent.VK_ENTER:
                         game.setKeyLatch(13);
                         break;
-                    case 403:               // B
-                        mode = MODE_NORMAL;
-                        logger.log(Level.TRACE, "mode: -> NORMAL");
+                    case KeyEvent.VK_F13:               // B
+                        mode = MODE_DISK1;
+                        logger.log(Level.TRACE, "mode: -> DISK1");
                         break;
-                    case 405:               // G
+                    case KeyEvent.VK_F14:               // G
                         game.restart();
                         break;
-                    case 406:               // Y
+                    case KeyEvent.VK_F15:               // Y
                         game.reset();
                     default:
                         game.setKeyLatch(keyCode);
@@ -406,20 +410,19 @@ public class AppleIIApp {
                 game.setPaddlePos(e.getX(), e.getY());
             }
 
-            static final int Y = 384;
-
             /* */
             public void paint(Graphics2D g) {
+                int Y = AppleDisplay.DISPLAY_SIZE_Y * scale;
                 g.setColor(Color.black);
-                g.drawRect(0, Y, 560, 540);
+                g.drawRect(0, Y, 560, AppleDisplay.DISPLAY_SIZE_Y * scale);
                 g.setColor(Color.white);
                 g.drawString(" Direct Mode", 0, Y + 36);
             }
         }
 
-        private KeyListener keyListener = new KeyAdapter() {
+        final KeyListener keyListener = new KeyAdapter() {
             @Override
-            public void keyTyped(KeyEvent event) {
+            public void keyPressed(KeyEvent event) {
                 int keyCode = event.getKeyCode();
                 switch (mode) {
                     case MODE_NORMAL:
@@ -448,7 +451,7 @@ public class AppleIIApp {
             }
         };
 
-        MouseInputListener mouseInputListener = new MouseInputAdapter() {
+        final MouseInputListener mouseInputListener = new MouseInputAdapter() {
             @Override
             public void mousePressed(MouseEvent event) {
                 switch (mode) {
@@ -490,8 +493,10 @@ public class AppleIIApp {
         /** */
         private final boolean debug;
 
+        final BufferedImage displayImage;
         final BufferedImage charSetSource;
         final Path root;
+        final int scale;
 
         MyView() throws IOException {
             root = Path.of(System.getProperty("user.home"), ".config/appleiigo");
@@ -502,6 +507,7 @@ public class AppleIIApp {
             game.setDao(dao);
 
             //
+            displayImage = new BufferedImage(AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y, BufferedImage.TYPE_INT_RGB);
             charSetSource = ImageIO.read(AppleIIApp.class.getResource("/character_set.png"));
 
             debug = "true".equals(dao.getParameter("debugMode"));
@@ -512,7 +518,8 @@ public class AppleIIApp {
             addMouseListener(mouseInputListener);
             addMouseMotionListener(mouseInputListener);
 
-            setPreferredSize(new Dimension(AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y));
+            scale = Integer.parseInt(game.getParameter("displayScale", "1"));
+            setPreferredSize(new Dimension(AppleDisplay.DISPLAY_SIZE_X * scale / 2, AppleDisplay.DISPLAY_SIZE_Y * scale));
             setFocusable(true);
         }
 
@@ -540,13 +547,11 @@ public class AppleIIApp {
 
             int displayScaledSizeX;
             int displayScaledSizeY;
-            final BufferedImage displayImage;
             final BufferedImage displayImagePaused;
             final BufferedImage displayImageGlare;
 
             GameVC() throws IOException {
                 // Load glare and pause images
-                displayImage = new BufferedImage(AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y, BufferedImage.TYPE_INT_ARGB);
                 displayImageGlare = ImageIO.read(AppleIIApp.class.getResource("/glare.png"));
                 displayImagePaused = ImageIO.read(AppleIIApp.class.getResource("/paused.png"));
             }
@@ -555,11 +560,9 @@ public class AppleIIApp {
             void paint(Graphics2D g) {
 
                 if (displayImage != null) {
-                    ((DataBufferInt) displayImage.getRaster().getDataBuffer()).setPixels(0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y, game.getDisplayImageBuffer());
-
                     g.drawImage(displayImage,
-                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             0, 0, displayScaledSizeX, displayScaledSizeY,
+                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             null);
                 }
 
@@ -571,15 +574,15 @@ public class AppleIIApp {
 
                 if ((displayImagePaused != null) && game.isPaused()) {
                     g.drawImage(displayImagePaused,
-                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             0, 0, displayScaledSizeX, displayScaledSizeY,
+                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             null);
                 }
 
                 if (game.isGlare() && (displayImageGlare != null)) {
                     g.drawImage(displayImageGlare,
-                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             0, 0, displayScaledSizeX, displayScaledSizeY,
+                            0, 0, AppleDisplay.DISPLAY_SIZE_X, AppleDisplay.DISPLAY_SIZE_Y,
                             null);
                 }
             }
@@ -605,11 +608,6 @@ public class AppleIIApp {
         }
 
         @Override
-        public void update(Graphics g) {
-            repaint();
-        }
-
-        @Override
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             if (gameVC == null) {
@@ -631,6 +629,11 @@ public class AppleIIApp {
                     diskVCs[1].paint(g2d);
                     break;
             }
+        }
+
+        @Override
+        public int[] createImageBuffer() {
+            return ((DataBufferInt) displayImage.getRaster().getDataBuffer()).getData();
         }
 
         @Override
@@ -672,7 +675,7 @@ public class AppleIIApp {
                     while (l < length) {
                         int r = is.read(bytes, offset + l, length - l);
                         if (r < 0) {
-                            logger.log(Level.TRACE, "Illegal EOF: " + l + "/" + length);
+                            logger.log(Level.WARNING, "Illegal EOF: " + l + "/" + length);
                             break;
                         }
                         l += r;
@@ -713,7 +716,7 @@ public class AppleIIApp {
              */
 //            public void openOutputStream(String resource) throws IOException {
 //                if (!(resource.substring(0, 6).equals("http://"))) {
-//                    this.os = new FileOutputStream(resource);
+//                    this.os = Files.newOutputStream(resource);
 //                }
 //            }
         }
