@@ -279,7 +279,7 @@ logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
                         break;
                     case KeyEvent.VK_ENTER:
                         name = files.get(fileIndex).getFileName().toString();
-//                    game.mountDisk(drive, name);
+                        game.mountDisk(drive, files.get(fileIndex).toAbsolutePath().toString());
                         selectionMode = MODE_SELECTED;
                         break;
                     case KeyEvent.VK_SPACE:
