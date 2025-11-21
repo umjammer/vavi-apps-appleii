@@ -248,7 +248,7 @@ public class AppleIIApp {
                             p.getFileName().toString().toLowerCase().endsWith(".dsk") ||
                             p.getFileName().toString().toLowerCase().endsWith(".nib")
                     )
-                ).toList();
+                ).sorted().toList();
 logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
             }
 
