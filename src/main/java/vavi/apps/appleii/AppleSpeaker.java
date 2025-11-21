@@ -7,35 +7,26 @@
 
 package vavi.apps.appleii;
 
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
 
-
-// TODO extract machine depend functions
 public class AppleSpeaker implements Runnable {
 
     // Instances of other classes
     private final EmAppleII apple;
 
     // Refresh
-    private int refreshRate;
+//    private int refreshRate;
     private long refreshInterval;
 
     // Sound stuff
-    private static final int SPEAKER_BITS = 16;
-    private static final int SPEAKER_SAMPLERATE = 44100;
-    private static final int SPEAKER_CHANNELS = 1;
-    private static final int SPEAKER_SAMPLESIZE = (SPEAKER_BITS * SPEAKER_CHANNELS / 8);
-    private static final boolean SPEAKER_SIGNED = true;
-    private static final boolean SPEAKER_BIGENDIAN = false;
+    public static final int SPEAKER_BITS = 16;
+    public static final int SPEAKER_SAMPLERATE = 44100;
+    public static final int SPEAKER_CHANNELS = 1;
+    public static final int SPEAKER_SAMPLESIZE = (SPEAKER_BITS * SPEAKER_CHANNELS / 8);
+    public static final boolean SPEAKER_SIGNED = true;
+    public static final boolean SPEAKER_BIGENDIAN = false;
 
     private int clock, clockNextFlip, clockEnd;
     private boolean isFlipsBufferEmpty = true;
-
-    private SourceDataLine line;
 
     private int bufferSize;
     private byte[] buffer;
@@ -49,7 +40,7 @@ public class AppleSpeaker implements Runnable {
 
     // Thread stuff
     private boolean isPaused = true;
-    private Thread thread;
+//    private Thread thread;
 
     public AppleSpeaker(EmAppleII apple) {
         this.apple = apple;
@@ -72,12 +63,12 @@ public class AppleSpeaker implements Runnable {
         speakerClocksPerSample = (int) (apple.getCpuSpeed() * 1000.0f / SPEAKER_SAMPLERATE);
     }
 
-    /**
-     * Get refresh rate
-     */
-    private int getRefreshRate() {
-        return refreshRate;
-    }
+//    /**
+//     * Get refresh rate
+//     */
+//    private int getRefreshRate() {
+//        return refreshRate;
+//    }
 
     /**
      * Set speaker volume
@@ -109,37 +100,18 @@ public class AppleSpeaker implements Runnable {
 
         isPaused = value;
         if (isPaused) {
-            try {
-                thread.join(1000);
-            } catch (InterruptedException e) {
-            }
-            if (line != null) {
-                line.stop();
-                line.close();
+//            try {
+//                thread.join(1000);
+//            } catch (InterruptedException e) {
+//            }
+            if (apple.view.isAudioAvailable()) {
+                apple.view.closeAudio();
             }
         } else {
             setRefreshRate(apple.getRefreshRate());
 
-            AudioFormat audioFormat = new AudioFormat(
-                    SPEAKER_SAMPLERATE,
-                    SPEAKER_BITS,
-                    SPEAKER_CHANNELS,
-                    SPEAKER_SIGNED,
-                    SPEAKER_BIGENDIAN);
-
-            DataLine.Info info = new DataLine.Info(
-                    SourceDataLine.class,
-                    audioFormat);
-
-            try {
-                line = (SourceDataLine) AudioSystem.getLine(info);
-                bufferSize = line.getBufferSize();
-                buffer = new byte[bufferSize];
-
-                line.open(audioFormat);
-                line.start();
-            } catch (LineUnavailableException e) {
-            }
+            bufferSize = apple.view.initAudio();
+            buffer = new byte[bufferSize];
 
             // TODO: this thread is not created any more (nick)
             //thread = new Thread(this);
@@ -176,11 +148,11 @@ public class AppleSpeaker implements Runnable {
         clockEnd = apple.clock;
         int bytes;
 
-        if (line == null)
+        if (!apple.view.isAudioAvailable())
             return;
 
         while ((bytes = fillBuffer()) > 0) {
-            line.write(buffer, 0, bytes);
+            apple.view.audioWrite(buffer, 0, bytes);
         }
     }
 

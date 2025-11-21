@@ -30,6 +30,11 @@ import java.util.Properties;
 import java.util.StringTokenizer;
 import java.util.zip.GZIPInputStream;
 import javax.imageio.ImageIO;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.SourceDataLine;
 import javax.swing.JComponent;
 import javax.swing.JFrame;
 import javax.swing.event.MouseInputAdapter;
@@ -38,8 +43,14 @@ import javax.swing.event.MouseInputListener;
 import vavi.apps.appleii.AppleDisplay;
 import vavi.apps.appleii.AppleIIGo;
 import vavi.apps.appleii.Paddle;
+import vavi.util.StringUtil;
 
 import static java.lang.System.getLogger;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_BIGENDIAN;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_BITS;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_CHANNELS;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_SAMPLERATE;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_SIGNED;
 
 
 /**
@@ -479,6 +490,54 @@ logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
                 }
             }
         };
+
+        private SourceDataLine line;
+
+        @Override
+        public int initAudio() {
+            AudioFormat audioFormat = new AudioFormat(
+                    SPEAKER_SAMPLERATE,
+                    SPEAKER_BITS,
+                    SPEAKER_CHANNELS,
+                    SPEAKER_SIGNED,
+                    SPEAKER_BIGENDIAN);
+
+            DataLine.Info info = new DataLine.Info(
+                    SourceDataLine.class,
+                    audioFormat);
+
+            int bufferSize = 0;
+            try {
+                line = (SourceDataLine) AudioSystem.getLine(info);
+logger.log(Level.DEBUG, line);
+                bufferSize = line.getBufferSize();
+
+                line.open(audioFormat);
+                line.start();
+            } catch (LineUnavailableException e) {
+                debug(e);
+            }
+
+            return bufferSize;
+        }
+
+        @Override
+        public boolean isAudioAvailable() {
+//            return line != null; // TODO audio always noisy
+            return false;
+        }
+
+        @Override
+        public void closeAudio() {
+            line.stop();
+            line.close();
+        }
+
+        @Override
+        public void audioWrite(byte[] buffer, int offset, int length) {
+logger.log(Level.DEBUG, "audio length: " + length + "\n" + StringUtil.getDump(buffer, 64));
+            line.write(buffer, 0, length);
+        }
 
         @Override
         public void debug(String s) {

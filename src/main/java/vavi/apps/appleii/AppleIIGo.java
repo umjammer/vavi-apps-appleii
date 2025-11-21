@@ -130,6 +130,15 @@ public class AppleIIGo {
 
         /** */
         void debug(String s);
+
+        /** @return audio buffer size */
+        int initAudio();
+
+        boolean isAudioAvailable();
+
+        void closeAudio();
+
+        void audioWrite(byte[] buffer, int offset, int length);
     }
 
     /** */
@@ -337,7 +346,7 @@ public class AppleIIGo {
         isCpuPaused = true;
         apple.setPaused(isCpuPaused);
         display.setPaused(isCpuPaused);
-//        speaker.setPaused(isCpuPaused);
+        apple.speaker.setPaused(isCpuPaused);
     }
 
     /**
@@ -346,7 +355,7 @@ public class AppleIIGo {
     public void resume() {
         logger.log(Level.TRACE, "resume()");
         isCpuPaused = false;
-//        speaker.setPaused(isCpuPaused);
+        apple.speaker.setPaused(isCpuPaused);
         display.setPaused(isCpuPaused);
         apple.setPaused(isCpuPaused);
     }
