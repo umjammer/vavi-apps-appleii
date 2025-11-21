@@ -56,7 +56,7 @@ public class DiskII extends Peripheral {
     private boolean isMotorOn = false;
 
     private final boolean[] isWriteProtected = new boolean[NUM_DRIVES];
-    private byte[][][] diskData = new byte[NUM_DRIVES][DOS_NUM_TRACKS][];
+    private final byte[][][] diskData = new byte[NUM_DRIVES][DOS_NUM_TRACKS][];
 
     private int currPhysTrack;
     private int currNibble;
@@ -104,7 +104,7 @@ public class DiskII extends Peripheral {
             0x0, 0x7, 0xe, 0x6, 0xd, 0x5, 0xc, 0x4,
             0xb, 0x3, 0xa, 0x2, 0x9, 0x1, 0x8, 0xf
     };
-    // Physical sector to DOS 3.3 logical sector table
+    /** Physical sector to DOS 3.3 logical sector table */
     private static final int[] gcrLogicalProdosSector = {
             0x0, 0x8, 0x1, 0x9, 0x2, 0xa, 0x3, 0xb,
             0x4, 0xc, 0x5, 0xd, 0x6, 0xe, 0x7, 0xf
@@ -114,7 +114,7 @@ public class DiskII extends Peripheral {
     private byte[] gcrNibbles = new byte[RAW_TRACK_BYTES];
     private int gcrNibblesPos;
 
-    EmAppleII apple;
+    private final EmAppleII apple;
 
     /**
      * Constructor
@@ -381,10 +381,8 @@ public class DiskII extends Peripheral {
             realTrack[currNibble] = (byte) latchData;
         }
 
-        /**
+        /*
          * I/O write Latch D
-         *
-         * @param value
          */
         currNibble++;
         if (currNibble >= RAW_TRACK_BYTES)

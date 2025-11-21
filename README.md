@@ -27,6 +27,8 @@ Apple II emulator for Java
 
  * [maven](https://jitpack.io/#umjammer/vavi-apps-appleii)
 
+## Usage
+
 ### config
 
 * ~/.config/appleiigo/appleii.properties
@@ -44,11 +46,14 @@ diskDrive1=LodeRunner.dsk      # drive 1
 #diskDrive2=Tetris II.dsk      # drive 2
 ```
 
-#### 
+#### Input Mode Change
 
-## Usage
+NORMAL - `F13` → DIRECT - `F13` → DISK1 - `F13` → DISK2 - `F13` → NORMAL
 
- *
+   * NORMAL ... game mode: numpad (as cursor key) + cursor (as gamepad) + space, z (as gamepad button 1) + enter, x (as gamepad button 2)
+   * DIRECT ... keyboard direct
+   * DISK1 ... disk1 selection: cursor up, down (disk changing), enter (disk selection), space, z (disk removing) 
+   * DISK2 ... disk2 selection: ditto
 
 ## References
 
@@ -60,8 +65,27 @@ diskDrive1=LodeRunner.dsk      # drive 1
  * https://github.com/apple2abandonware/abandonware (romz)
  * ftp://ftp.apple.asimov.net/pub/apple_II/
  * https://github.com/sicklittlemonkey/AppleIIGo (v1.0.10)
+ * https://www.a2desktop.com/
+ * https://github.com/badvision/jace (can read nib correctly)
+
 
 ## TODO
 
- * extract osd for audio
- * .po, .shk, .sdk reader
+ * ~~extract osd for audio~~
+ * .po, .shk, .sdk reader ... apple commander?
+ * sound
+
+---
+
+# [Original](https://github.com/sicklittlemonkey/AppleIIGo)
+
+Apple //e emulator Java applet
+
+Original version: Copyright 2006 Marc S. Ressl, with parts adapted from code by
+
+* Steven E. Hugg
+* Doug Kwan
+* Randy Frank
+* Ben Koning
+
+Subsequent versions: Copyright 2008-2015 Nick Westgate

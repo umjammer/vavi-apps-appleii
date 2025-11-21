@@ -329,9 +329,9 @@ public class Em6502 {
 
     private int eaabsx() {
         // No cross page check...
-        // easp1 = eaabs();
-        // checkCrossPage(easp1, X);
-        // return easp1 + X;
+        //easp1 = eaabs();
+        //checkCrossPage(easp1, X);
+        //return easp1 + X;
         return eaabs() + X;
     }
 
@@ -341,9 +341,9 @@ public class Em6502 {
 
     private int eaabsy() {
         // No cross page check...
-        // easp1 = eaabs();
-        // checkCrossPage(easp1, Y);
-        // return easp1 + Y;
+        //easp1 = eaabs();
+        //checkCrossPage(easp1, Y);
+        //return easp1 + Y;
         return eaabs() + Y;
     }
 
@@ -371,9 +371,9 @@ public class Em6502 {
         easp1 = eaimm();
         easp2 = zeroPageRead(easp1);
         // No cross page check...
-        // easp2 += (zeroPageRead((easp1 + 1) & 0xff) << 8);
-        // checkCrossPage(easp2,Y);
-        // return easp2 + Y;
+        //easp2 += (zeroPageRead((easp1 + 1) & 0xff) << 8);
+        //checkCrossPage(easp2,Y);
+        //return easp2 + Y;
         return easp2 + (zeroPageRead((easp1 + 1) & 0xff) << 8) + Y;
     }
 
