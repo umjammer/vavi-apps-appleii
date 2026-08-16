@@ -36,7 +36,19 @@ public class AppleSpeaker implements Runnable {
     private int speakerFlipState;
 
     private final int[] speakerFlipStateToVolume = new int[2];
+    /** cpu clocks per sample, 16.16 fixed point: 44100 never divides the cpu clock evenly */
     private int speakerClocksPerSample;
+    /** fractional part left over from the previous sample */
+    private int speakerClockAccumulator;
+
+    /**
+     * DC blocking filter. An idle speaker holds a constant full scale level, and a
+     * steady offset like that turns every start, stop and buffer underrun into a
+     * pop. Filtering it out lets an untouched speaker decay to real silence, the
+     * way the physical cone does.
+     */
+    private static final float DC_FILTER = 0.9985f; // ~10Hz at 44100Hz
+    private float dcFilterLastIn, dcFilterLastOut;
 
     // Thread stuff
     private boolean isPaused = true;
@@ -60,7 +72,8 @@ public class AppleSpeaker implements Runnable {
 //		this.refreshRate = value;
         refreshInterval = (int) (1000.0 / value);
 
-        speakerClocksPerSample = (int) (apple.getCpuSpeed() * 1000.0f / SPEAKER_SAMPLERATE);
+        // never zero, or filling a buffer would never advance the clock
+        speakerClocksPerSample = Math.max(1, (int) (apple.getCpuSpeed() * 1000.0 / SPEAKER_SAMPLERATE * 0x1_0000));
     }
 
 //    /**
@@ -79,7 +92,7 @@ public class AppleSpeaker implements Runnable {
 
         speakerVolume = value;
 
-        int absVolume = 1 << (value + 8);
+        int absVolume = Math.min(1 << (value + 8), Short.MAX_VALUE);
         speakerFlipStateToVolume[0] = -absVolume;
         speakerFlipStateToVolume[1] = absVolume;
     }
@@ -109,6 +122,17 @@ public class AppleSpeaker implements Runnable {
             }
         } else {
             setRefreshRate(apple.getRefreshRate());
+
+            // start from where the cpu is now, otherwise the whole paused span
+            // would be rendered as one huge catch-up burst
+            clock = apple.clock;
+            speakerClockAccumulator = 0;
+            speakerFlipsPointer = apple.speakerFlipsPointer;
+            isFlipsBufferEmpty = true;
+            // the filter starts already settled on the level the speaker sits at,
+            // so starting up is silent rather than a click
+            dcFilterLastIn = speakerFlipStateToVolume[speakerFlipState];
+            dcFilterLastOut = 0;
 
             bufferSize = apple.view.initAudio();
             buffer = new byte[bufferSize];
@@ -161,30 +185,37 @@ public class AppleSpeaker implements Runnable {
      */
     private int fillBuffer() {
         int value = speakerFlipStateToVolume[speakerFlipState];
-        int clockEndSample = clockEnd - speakerClocksPerSample;
         int bufferPointer = 0;
 
         initNextFlip();
         while (bufferPointer < bufferSize) {
-            if (clockEndSample == clock)
+            int accumulator = speakerClockAccumulator + speakerClocksPerSample;
+            int clockStep = accumulator >> 16;
+
+            // clock differences are computed as plain int subtraction so they stay
+            // correct when the cpu clock wraps
+            if (clockEnd - clock < clockStep)
                 break;
 
-            if (((clockEndSample - clock) & 0x7fff_ffff) > 0x3fff_ffff)
-                break;
+            speakerClockAccumulator = accumulator & 0xffff;
 
             // Find all flips on current sample
-            while (((clockNextFlip - clock) & 0x7fff_ffff) < speakerClocksPerSample) {
+            while (clockNextFlip - clock < clockStep) {
                 getNextFlip();
                 speakerFlipState = (speakerFlipState ^ 1);
                 value = speakerFlipStateToVolume[speakerFlipState];
             }
 
             // Write sample
-            buffer[bufferPointer] = (byte) (value & 0xff);
-            buffer[bufferPointer + 1] = (byte) (value >> 8);
+            dcFilterLastOut = DC_FILTER * (dcFilterLastOut + value - dcFilterLastIn);
+            dcFilterLastIn = value;
+            int sample = Math.clamp(Math.round(dcFilterLastOut), Short.MIN_VALUE, Short.MAX_VALUE);
+
+            buffer[bufferPointer] = (byte) (sample & 0xff);
+            buffer[bufferPointer + 1] = (byte) (sample >> 8);
             bufferPointer += SPEAKER_SAMPLESIZE;
 
-            clock += speakerClocksPerSample;
+            clock += clockStep;
         }
 
         return bufferPointer;

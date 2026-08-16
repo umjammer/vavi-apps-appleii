@@ -13,8 +13,9 @@ Apple II emulator for Java
 ### chips
 
 | type | name    | status |
-|------|---------|:------:|
+|---------|---------|:------:|
 | cpu  | MOS6502 |   ✅️   |
+| speaker | $C030   |   ✅️   |
 
 ### disk types
 
@@ -39,12 +40,18 @@ displayColorMode=1             # 0: green, 1: color
 displayScale=4                 # scale for the app window size
 #cpuDebugEnabled=true
 #displayStatMode=true
-cpuSpeed=2000
+cpuSpeed=2000                  # cpu clock in kHz, the real machine is 1020
 displayRefreshRate=10
 #cpuStepMode=true
+speakerVolume=3                # 0..7
+speakerLatency=120             # audio buffer in ms, raise it if sound breaks up
 diskDrive1=LodeRunner.dsk      # drive 1
 #diskDrive2=Tetris II.dsk      # drive 2
 ```
+
+Note that `cpuSpeed` scales the whole machine, sound included: at `2000` the
+apple ii runs at twice its real speed and everything plays an octave high. Use
+`1020` for authentic pitch.
 
 #### Input Mode Change
 
@@ -73,7 +80,7 @@ NORMAL - `F13` → DIRECT - `F13` → DISK1 - `F13` → DISK2 - `F13` → NORMAL
 
  * ~~extract osd for audio~~
  * .po, .shk, .sdk reader ... apple commander?
- * sound
+ * ~~sound~~
 
 ---
 
