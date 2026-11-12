@@ -172,6 +172,15 @@ public class SpeakerHarness implements AppleIIGo.View, AppleIIGo.Dao {
     }
 
     @Override
+    public byte[] readAllBytes() {
+        try {
+            return is.readAllBytes();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    @Override
     public void closeInputStream() {
         try {
             is.close();

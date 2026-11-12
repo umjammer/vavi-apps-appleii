@@ -42,6 +42,7 @@ import javax.swing.event.MouseInputListener;
 
 import vavi.apps.appleii.AppleDisplay;
 import vavi.apps.appleii.AppleIIGo;
+import vavi.apps.appleii.DiskImage;
 import vavi.apps.appleii.Paddle;
 
 import static java.lang.System.getLogger;
@@ -255,10 +256,7 @@ public class AppleIIApp {
                 this.drive = drive;
                 this.image = ImageIO.read(AppleIIApp.class.getResource("/disk.png"));
                 files = Files.walk(root, FileVisitOption.FOLLOW_LINKS).filter(p ->
-                    !Files.isDirectory(p) && (
-                            p.getFileName().toString().toLowerCase().endsWith(".dsk") ||
-                            p.getFileName().toString().toLowerCase().endsWith(".nib")
-                    )
+                    !Files.isDirectory(p) && DiskImage.isDiskImage(p.getFileName().toString())
                 ).sorted().toList();
 logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
             }
@@ -733,6 +731,15 @@ logger.log(Level.DEBUG, "audio: " + line + ", buffer: " + bufferSize + " bytes")
             @Override
             public String getParameter(String parameter) {
                 return props.getProperty(parameter);
+            }
+
+            @Override
+            public byte[] readAllBytes() {
+                try {
+                    return is.readAllBytes();
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
             }
 
             @Override

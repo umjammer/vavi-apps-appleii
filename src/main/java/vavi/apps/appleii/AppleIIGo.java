@@ -164,6 +164,11 @@ public class AppleIIGo {
         void read(byte[] bytes, int offset, int length);
 
         /**
+         * Reads all remaining bytes of the opened input stream.
+         */
+        byte[] readAllBytes();
+
+        /**
          * Open input stream
          */
         void closeInputStream();

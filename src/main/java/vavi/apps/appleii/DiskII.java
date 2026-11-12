@@ -10,6 +10,7 @@
 package vavi.apps.appleii;
 
 import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
 
 import static java.lang.System.getLogger;
 
@@ -41,14 +42,8 @@ public class DiskII extends Peripheral {
     // Constants
     public static final int DEFAULT_VOLUME = 254;
     private static final int NUM_DRIVES = 2;
-    private static final int DOS_NUM_SECTORS = 16;
-    private static final int DOS_NUM_TRACKS = 35;
+    private static final int DOS_NUM_TRACKS = DiskImage.NUM_TRACKS;
     private static final int MAX_PHYS_TRACK = (2 * DOS_NUM_TRACKS) - 1;
-    private static final int DOS_TRACK_BYTES = 256 * DOS_NUM_SECTORS;
-    private static final int RAW_TRACK_BYTES = 0x1A00; // 0x1A00 (6656) for .NIB (was 6250)
-    private static final int STANDARD_2IMG_HEADER_ID = 0x32494D47;
-    private static final int STANDARD_2IMG_HEADER_SIZE = 64;
-    private static final int STANDARD_PRODOS_BLOCKS = 280;
 
     // Disk II direct access variables
     private int drive = 0;
@@ -82,37 +77,6 @@ public class DiskII extends Peripheral {
     private boolean writeMode;
     private boolean loadMode;
     private int driveSpin;
-
-    /** GCR encoding and decoding tables */
-    private static final int[] gcrEncodingTable = {
-            0x96, 0x97, 0x9a, 0x9b, 0x9d, 0x9e, 0x9f, 0xa6,
-            0xa7, 0xab, 0xac, 0xad, 0xae, 0xaf, 0xb2, 0xb3,
-            0xb4, 0xb5, 0xb6, 0xb7, 0xb9, 0xba, 0xbb, 0xbc,
-            0xbd, 0xbe, 0xbf, 0xcb, 0xcd, 0xce, 0xcf, 0xd3,
-            0xd6, 0xd7, 0xd9, 0xda, 0xdb, 0xdc, 0xdd, 0xde,
-            0xdf, 0xe5, 0xe6, 0xe7, 0xe9, 0xea, 0xeb, 0xec,
-            0xed, 0xee, 0xef, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6,
-            0xf7, 0xf9, 0xfa, 0xfb, 0xfc, 0xfd, 0xfe, 0xff,
-    };
-    //private int[] gcrDecodingTable = new int[256];
-    private final int[] gcrSwapBit = {0, 2, 1, 3};
-    private final int[] gcrBuffer = new int[256];
-    private final int[] gcrBuffer2 = new int[86];
-
-    /** Physical sector to DOS 3.3 logical sector table */
-    private static final int[] gcrLogicalDos33Sector = {
-            0x0, 0x7, 0xe, 0x6, 0xd, 0x5, 0xc, 0x4,
-            0xb, 0x3, 0xa, 0x2, 0x9, 0x1, 0x8, 0xf
-    };
-    /** Physical sector to DOS 3.3 logical sector table */
-    private static final int[] gcrLogicalProdosSector = {
-            0x0, 0x8, 0x1, 0x9, 0x2, 0xa, 0x3, 0xb,
-            0x4, 0xc, 0x5, 0xd, 0x6, 0xe, 0x7, 0xf
-    };
-
-    // Temporary variables for conversion
-    private byte[] gcrNibbles = new byte[RAW_TRACK_BYTES];
-    private int gcrNibblesPos;
 
     private final EmAppleII apple;
 
@@ -242,75 +206,36 @@ public class DiskII extends Peripheral {
     /**
      * Loads a disk
      *
-     * @param name  filename
+     * @param dao   io, null means no disk
      * @param drive Disk II drive
+     * @param name  filename, null or empty means no disk
+     * @return false when the image is not supported, the drive becomes empty
      */
     public boolean readDisk(AppleIIGo.Dao dao, int drive, String name, boolean isWriteProtected, int volumeNumber) {
-        byte[] track = new byte[DOS_TRACK_BYTES];
-        boolean proDos = false;
-        boolean nib = false;
+        DiskImage image = DiskImage.empty();
+        boolean result = true;
 
-        if (dao != null) {
+        if (dao != null && name != null && !name.isEmpty()) {
             dao.openInputStream(name);
-        }
-
-        String lowerName = name.toLowerCase();
-        if (lowerName.contains(".2mg") || lowerName.contains(".2img")) {
-            // 2IMG, so check if we can handle it
-            byte[] header = new byte[STANDARD_2IMG_HEADER_SIZE];
-            dao.read(header, 0, STANDARD_2IMG_HEADER_SIZE);
-
-            int id = (header[0x00] << 24) | (header[0x01] << 16) | (header[0x02] << 8) | (header[0x03]);
-            if (id != STANDARD_2IMG_HEADER_ID)
-                return false;
-
-            int headerSize = (header[0x09] << 8) | (header[0x08]);
-            if (headerSize != STANDARD_2IMG_HEADER_SIZE)
-                return false;
-
-            int format = (header[0x0F] << 24) | (header[0x0E] << 16) | (header[0x0D] << 8) | (header[0x0C]);
-            if (format == 1) {
-                proDos = true;
-                int blocks = (header[0x17] << 24) | (header[0x16] << 16) | (header[0x15] << 8) | (header[0x14]);
-                if (blocks != STANDARD_PRODOS_BLOCKS)
-                    return false; // only handle standard 5.25 inch images
-            } else if (format == 2) {
-                nib = true;
-            } else if (format != 0) {
-                return false; // if not ProDOS, NIB or DSK
-            }
-
-            // use write protected and volume number if present
-            int flags = (header[0x13] << 24) | (header[0x12] << 16) | (header[0x11] << 8) | (header[0x10]);
-            if ((flags & (1 << 31)) != 0) {
-                isWriteProtected = true; // only override if set
-            }
-            if ((flags & (1 << 8)) != 0) {
-                volumeNumber = (flags & 0xFF);
-            }
-        } else {
-            // check for PO and NIB in the name
-            proDos = lowerName.contains(".po");
-            nib = lowerName.contains(".nib");
-        }
-
-        for (int trackNum = 0; trackNum < DOS_NUM_TRACKS; trackNum++) {
-            diskData[drive][trackNum] = new byte[RAW_TRACK_BYTES];
-
-            if (dao != null) {
-                if (nib) {
-                    dao.read(diskData[drive][trackNum], 0, RAW_TRACK_BYTES);
-                } else {
-                    dao.read(track, 0, DOS_TRACK_BYTES);
-                    trackToNibbles(track, diskData[drive][trackNum], volumeNumber, trackNum, !proDos);
-                }
+            try {
+                image = DiskImage.read(dao.readAllBytes(), name, isWriteProtected, volumeNumber);
+                logger.log(Level.DEBUG, "drive " + drive + ": " + name + " (" + image.getFormat() + ")");
+            } catch (RuntimeException e) {
+                logger.log(Level.WARNING, "drive " + drive + ": unsupported image: " + name + ", " + e.getMessage());
+                result = false;
+            } finally {
+                dao.closeInputStream();
             }
         }
 
-        this.realTrack = diskData[drive][currPhysTrack >> 1];
-        this.isWriteProtected[drive] = isWriteProtected;
+        byte[][] tracks = image.getTracks();
+        System.arraycopy(tracks, 0, diskData[drive], 0, DOS_NUM_TRACKS);
+        if (drive == this.drive) {
+            this.realTrack = diskData[drive][currPhysTrack >> 1];
+        }
+        this.isWriteProtected[drive] = image.isWriteProtected() || isWriteProtected;
 
-        return true;
+        return result;
     }
 
     /**
@@ -335,6 +260,10 @@ public class DiskII extends Peripheral {
      */
     private void ioLatchC() {
         loadMode = false;
+        // tracks may have different lengths (e.g. WOZ), keep the position inside the current one
+        if (currNibble >= realTrack.length) {
+            currNibble %= realTrack.length;
+        }
         if (!writeMode) {
             if (!isMotorOn) {
                 // simple hack to fool RWTS SAMESLOT drive spin check (usually at $BD34)
@@ -356,10 +285,10 @@ public class DiskII extends Peripheral {
                             apple.memoryRead(apple.PC + 0) == 0x10 &&  // BPL
                             latchData != 0xD5) {
                 // Y: find the next address prologues
-                int count = RAW_TRACK_BYTES / 16;
+                int count = realTrack.length / 16;
                 do {
                     currNibble++;
-                    if (currNibble >= RAW_TRACK_BYTES)
+                    if (currNibble >= realTrack.length)
                         currNibble = 0;
                     latchData = (realTrack[currNibble] & 0xff);
                 }
@@ -367,10 +296,10 @@ public class DiskII extends Peripheral {
             }
             // N: skip invalid nibbles we padded the track buffer with
             else if (latchData == 0x7F) {
-                int count = RAW_TRACK_BYTES / 16;
+                int count = realTrack.length / 16;
                 do {
                     currNibble++;
-                    if (currNibble >= RAW_TRACK_BYTES)
+                    if (currNibble >= realTrack.length)
                         currNibble = 0;
                     latchData = (realTrack[currNibble] & 0xff);
                 }
@@ -385,7 +314,7 @@ public class DiskII extends Peripheral {
          * I/O write Latch D
          */
         currNibble++;
-        if (currNibble >= RAW_TRACK_BYTES)
+        if (currNibble >= realTrack.length)
             currNibble = 0;
     }
 
@@ -437,148 +366,5 @@ public class DiskII extends Peripheral {
         drive = newDrive;
         currPhysTrack = driveCurrPhysTrack[drive];
         realTrack = diskData[drive][currPhysTrack >> 1];
-    }
-
-    /*
-     * TRACK CONVERSION ROUTINES
-     */
-
-    /**
-     * Writes a nibble
-     *
-     * @param value Value
-     */
-    private void gcrWriteNibble(int value) {
-        gcrNibbles[gcrNibblesPos] = (byte) value;
-        gcrNibblesPos++;
-    }
-
-    /**
-     * Writes nibbles
-     *
-     * @param length Number of bits
-     */
-    private final void writeNibbles(int nibble, int length) {
-        while (length > 0) {
-            length--;
-            gcrWriteNibble(nibble);
-        }
-    }
-
-    /**
-     * Writes sync nibbles
-     *
-     * @param length Number of bits
-     */
-    private final void writeSync(int length) {
-        writeNibbles(0xff, length);
-    }
-
-    /**
-     * Write an FM encoded value, used in writing address fields
-     *
-     * @param value Value
-     */
-    private void encode44(int value) {
-        gcrWriteNibble((value >> 1) | 0xaa);
-        gcrWriteNibble(value | 0xaa);
-    }
-
-    /**
-     * Encode in 6:2
-     *
-     * @param track  Sectorized track data
-     * @param offset Offset in this data
-     */
-    private void encode62(byte[] track, int offset) {
-        // 86 * 3 = 258, so the first two byte are encoded twice
-        gcrBuffer2[0] = gcrSwapBit[track[offset + 1] & 0x03];
-        gcrBuffer2[1] = gcrSwapBit[track[offset] & 0x03];
-
-        // Save higher 6 bits in gcrBuffer and lower 2 bits in gcrBuffer2
-        for (int i = 255, j = 2; i >= 0; i--, j = j == 85 ? 0 : j + 1) {
-            gcrBuffer2[j] = ((gcrBuffer2[j] << 2) | gcrSwapBit[track[offset + i] & 0x03]);
-            gcrBuffer[i] = (track[offset + i] & 0xff) >> 2;
-        }
-
-        // Clear off higher 2 bits of GCR_buffer2 set in the last call
-        for (int i = 0; i < 86; i++) {
-            gcrBuffer2[i] &= 0x3f;
-        }
-    }
-
-    /**
-     * Write address field
-     *
-     * @param trackNum  Sectorized track data
-     * @param sectorNum Offset in this data
-     */
-    private void writeAddressField(int volumeNum, int trackNum, int sectorNum) {
-        // Write address mark
-        gcrWriteNibble(0xd5);
-        gcrWriteNibble(0xaa);
-        gcrWriteNibble(0x96);
-
-        // Write volume, trackNum, sector & checksum
-        encode44(volumeNum);
-        encode44(trackNum);
-        encode44(sectorNum);
-        encode44(volumeNum ^ trackNum ^ sectorNum);
-
-        // Write epilogue
-        gcrWriteNibble(0xde);
-        gcrWriteNibble(0xaa);
-        gcrWriteNibble(0xeb);
-    }
-
-    /**
-     * Write data field
-     */
-    private void writeDataField() {
-        int last = 0;
-        int checksum;
-
-        // Write prologue
-        gcrWriteNibble(0xd5);
-        gcrWriteNibble(0xaa);
-        gcrWriteNibble(0xad);
-
-        // Write GCR encoded data
-        for (int i = 0x55; i >= 0; i--) {
-            checksum = last ^ gcrBuffer2[i];
-            gcrWriteNibble(gcrEncodingTable[checksum]);
-            last = gcrBuffer2[i];
-        }
-        for (int i = 0; i < 256; i++) {
-            checksum = last ^ gcrBuffer[i];
-            gcrWriteNibble(gcrEncodingTable[checksum]);
-            last = gcrBuffer[i];
-        }
-
-        // Write checksum
-        gcrWriteNibble(gcrEncodingTable[last]);
-
-        // Write epilogue
-        gcrWriteNibble(0xde);
-        gcrWriteNibble(0xaa);
-        gcrWriteNibble(0xeb);
-    }
-
-    /**
-     * Converts a track to nibbles
-     */
-    private void trackToNibbles(byte[] track, byte[] nibbles, int volumeNum, int trackNum, boolean dos) {
-        this.gcrNibbles = nibbles;
-        gcrNibblesPos = 0;
-        int[] logicalSector = (dos) ? gcrLogicalDos33Sector : gcrLogicalProdosSector;
-
-        for (int sectorNum = 0; sectorNum < DOS_NUM_SECTORS; sectorNum++) {
-            encode62(track, logicalSector[sectorNum] << 8);
-            writeSync(12);
-            writeAddressField(volumeNum, trackNum, sectorNum);
-            writeSync(8);
-            writeDataField();
-        }
-        writeNibbles(0x7F, RAW_TRACK_BYTES - gcrNibblesPos); // invalid nibbles to skip on read
     }
 }
