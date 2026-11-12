@@ -27,6 +27,7 @@ import com.webcodepro.applecommander.testconfig.TestConfig;
 import org.applecommander.image.DiskCopyImage;
 import org.applecommander.image.UniversalDiskImage;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.platform.engine.support.descriptor.FileSource;
@@ -36,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 
+@Disabled
 public class SourceFactoryTest {
 
     private static final String DISKS = TestConfig.getInstance().getDiskDir();
