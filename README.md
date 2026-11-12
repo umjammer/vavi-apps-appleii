@@ -1,28 +1,36 @@
 [![Release](https://jitpack.io/v/umjammer/vavi-apps-appleii.svg)](https://jitpack.io/#umjammer/vavi-apps-appleii)
 [![Java CI](https://github.com/umjammer/vavi-apps-appleii/actions/workflows/maven.yml/badge.svg)](https://github.com/umjammer/vavi-apps-appleii/actions/workflows/maven.yml)
 [![CodeQL](https://github.com/umjammer/vavi-apps-appleii/actions/workflows/codeql.yml/badge.svg)](https://github.com/umjammer/vavi-apps-appleii/actions/workflows/codeql.yml)
-![Java](https://img.shields.io/badge/Java-21-b07219)
+![Java](https://img.shields.io/badge/Java-25-b07219)
 [![QuickMVC](https://img.shields.io/badge/Quick%20MVC-Applied-magenta)](https://github.com/umjammer/umjammer/blob/wiki/QuickMVC.md)
 
 # vavi-apps-appleii
 
-<img alt="logo" src="src/test/resources/Apple2Logo.svg" width="160"> <sub>&nbsp;&nbsp;<a href="https://www.apple.com/">© Apple Inc.</a></sub>
+<img alt="logo" src="src/test/resources/duke_apple_ii.png" width="200" />
 
 Apple II emulator for Java
 
 ### chips
 
-| type | name    | status |
+| type    | name    | status |
 |---------|---------|:------:|
-| cpu  | MOS6502 |   ✅️   |
+| cpu     | MOS6502 |   ✅️   |
 | speaker | $C030   |   ✅️   |
 
 ### disk types
 
-| type | name | status |
-|------|------|:------:|
-| dsk  |      |   ✅️   |
-| nib  |      |   ✅️   |
+image containers are recognized by [AppleCommander](https://github.com/AppleCommander/AppleCommander), gzip compressed ones (`*.gz`) are also accepted.
+
+| type      | name                          | status | comment                                              |
+|-----------|-------------------------------|:------:|------------------------------------------------------|
+| dsk       | sector image                  |   ✅️   | DOS/ProDOS sector order is detected by file system   |
+| do        | sector image (DOS order)      |   ✅️   |                                                      |
+| po        | sector image (ProDOS order)   |   ✅️   |                                                      |
+| nib       | nibble image                  |   ✅️   |                                                      |
+| woz       | WOZ1, WOZ2                    |   ✅️   | read only, whole tracks only, bit timing is dropped  |
+| 2mg, 2img | universal disk image          |   ✅️   | 5.25" (DOS, ProDOS, nibble) only                     |
+| d13       | 13 sector image               |   🚫   | 5&3 encoding is not implemented                      |
+| 800k, hdv | 3.5" disk, hard disk          |   🚫   | not a Disk II media                                  |
 
 ## Install
 
@@ -66,14 +74,13 @@ NORMAL - `F13` → DIRECT - `F13` → DISK1 - `F13` → DISK2 - `F13` → NORMAL
 
  * [original](https://web.archive.org/web/20070217131635/http://www-personal.umich.edu/~mressl/appleiigo/)
  * https://www7b.biglobe.ne.jp/~izushi/OTN/tn1/tn1Apple2.html
- * https://github.com/sicklittlemonkey/AppleIIGo (po readable)
+ * https://github.com/sicklittlemonkey/AppleIIGo (po readable, v1.0.10)
  * https://github.com/AppleCommander
  * https://github.com/zellyn/diskii
  * https://github.com/apple2abandonware/abandonware (romz)
  * ftp://ftp.apple.asimov.net/pub/apple_II/
- * https://github.com/sicklittlemonkey/AppleIIGo (v1.0.10)
  * https://www.a2desktop.com/
- * https://github.com/badvision/jace (can read nib correctly)
+ * https://github.com/badvision/jace
 
 
 ## TODO
@@ -96,3 +103,7 @@ Original version: Copyright 2006 Marc S. Ressl, with parts adapted from code by
 * Ben Koning
 
 Subsequent versions: Copyright 2008-2015 Nick Westgate
+
+---
+
+<sub>image designed by @umjammer, drawn by nano banana</sub>
