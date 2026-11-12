@@ -84,7 +84,10 @@ public class EmAppleII extends Em6502 implements Runnable {
     public static final int GR_DHIRES = (1 << 7);
 
     // Sound
-    public static final int SPEAKER_FLIPS_BITS = 12;
+    // the speaker is only drained once per refresh interval, so the ring has to
+    // hold every flip of a whole interval - digitised sound toggles it far faster
+    // than a plain square wave tone does
+    public static final int SPEAKER_FLIPS_BITS = 15;
     public static final int SPEAKER_FLIPS_SIZE = 1 << SPEAKER_FLIPS_BITS;
     public static final int SPEAKER_FLIPS_MASK = SPEAKER_FLIPS_SIZE - 1;
 
@@ -1265,6 +1268,8 @@ public class EmAppleII extends Em6502 implements Runnable {
     @Override
     public void run() {
         try {
+            long clocksDueSince = System.nanoTime();
+
             while (!isPaused) {
                 long refreshStart = System.currentTimeMillis();
                 long refreshDelay;
@@ -1278,10 +1283,22 @@ public class EmAppleII extends Em6502 implements Runnable {
                         executeInstructions(stepCount);
                     }
                 } else {
-                    int clocksNeeded = clocksPerInterval;
+                    // The quota comes from the time that really elapsed rather than
+                    // from a fixed clocksPerInterval. Thread.sleep() always overshoots,
+                    // so a fixed quota leaves the emulated clock permanently behind the
+                    // wall clock, and the speaker - which is sampled off that clock -
+                    // then feeds the audio line less than a second of sound per second
+                    // and underruns forever. The sub-millisecond remainder is carried
+                    // over so no time is lost, and the quota is capped so that a stall
+                    // is dropped instead of being made up in one burst.
+                    long now = System.nanoTime();
+                    long elapsed = (now - clocksDueSince) / 1_000_000L;
+                    clocksDueSince += elapsed * 1_000_000L;
+
+                    int clocksNeeded = (int) Math.min(elapsed * cpuSpeed, clocksPerInterval * 4L);
                     while (clocksNeeded > 0) {
                         clocksNeeded -= executeInstructions(1 + (clocksNeeded >> 3));
-                }
+                    }
                 }
 //				}
 //				catch (RuntimeException e)

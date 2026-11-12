@@ -42,14 +42,15 @@ import javax.swing.event.MouseInputListener;
 
 import vavi.apps.appleii.AppleDisplay;
 import vavi.apps.appleii.AppleIIGo;
+import vavi.apps.appleii.DiskImage;
 import vavi.apps.appleii.Paddle;
-import vavi.util.StringUtil;
 
 import static java.lang.System.getLogger;
 import static vavi.apps.appleii.AppleSpeaker.SPEAKER_BIGENDIAN;
 import static vavi.apps.appleii.AppleSpeaker.SPEAKER_BITS;
 import static vavi.apps.appleii.AppleSpeaker.SPEAKER_CHANNELS;
 import static vavi.apps.appleii.AppleSpeaker.SPEAKER_SAMPLERATE;
+import static vavi.apps.appleii.AppleSpeaker.SPEAKER_SAMPLESIZE;
 import static vavi.apps.appleii.AppleSpeaker.SPEAKER_SIGNED;
 
 
@@ -255,10 +256,7 @@ public class AppleIIApp {
                 this.drive = drive;
                 this.image = ImageIO.read(AppleIIApp.class.getResource("/disk.png"));
                 files = Files.walk(root, FileVisitOption.FOLLOW_LINKS).filter(p ->
-                    !Files.isDirectory(p) && (
-                            p.getFileName().toString().toLowerCase().endsWith(".dsk") ||
-                            p.getFileName().toString().toLowerCase().endsWith(".nib")
-                    )
+                    !Files.isDirectory(p) && DiskImage.isDiskImage(p.getFileName().toString())
                 ).sorted().toList();
 logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
             }
@@ -506,15 +504,24 @@ logger.log(Level.TRACE, "disks[%d]: %d".formatted(drive, files.size()));
                     SourceDataLine.class,
                     audioFormat);
 
-            int bufferSize = 0;
+            // the line's default buffer is half a second, which is both far too much
+            // lag for a game and a huge blocking write on every refresh
+            int latency = Integer.parseInt(game.getParameter("speakerLatency", "120"));
+            int bufferSize = SPEAKER_SAMPLERATE * SPEAKER_SAMPLESIZE * latency / 1000;
+            bufferSize -= bufferSize % SPEAKER_SAMPLESIZE;
+
             try {
                 line = (SourceDataLine) AudioSystem.getLine(info);
-logger.log(Level.DEBUG, line);
+                line.open(audioFormat, bufferSize);
                 bufferSize = line.getBufferSize();
 
-                line.open(audioFormat);
+                // prime the line with silence before it starts consuming, so the
+                // emulator has a cushion to fill while the jit is still warming up
+                line.write(new byte[bufferSize / 2], 0, bufferSize / 2);
                 line.start();
+logger.log(Level.DEBUG, "audio: " + line + ", buffer: " + bufferSize + " bytes");
             } catch (LineUnavailableException e) {
+                line = null;
                 debug(e);
             }
 
@@ -523,20 +530,19 @@ logger.log(Level.DEBUG, line);
 
         @Override
         public boolean isAudioAvailable() {
-//            return line != null; // TODO audio always noisy
-            return false;
+            return line != null;
         }
 
         @Override
         public void closeAudio() {
             line.stop();
             line.close();
+            line = null;
         }
 
         @Override
         public void audioWrite(byte[] buffer, int offset, int length) {
-logger.log(Level.DEBUG, "audio length: " + length + "\n" + StringUtil.getDump(buffer, 64));
-            line.write(buffer, 0, length);
+            line.write(buffer, offset, length);
         }
 
         @Override
@@ -725,6 +731,15 @@ logger.log(Level.DEBUG, "audio length: " + length + "\n" + StringUtil.getDump(bu
             @Override
             public String getParameter(String parameter) {
                 return props.getProperty(parameter);
+            }
+
+            @Override
+            public byte[] readAllBytes() {
+                try {
+                    return is.readAllBytes();
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
             }
 
             @Override
